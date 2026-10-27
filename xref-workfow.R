@@ -2,22 +2,26 @@ library(ecoSynthesis)
 library(sf)
 library(readr)
 library(dplyr)
+library(fasterize)
+library(raster)
+library(terra)
 
 here::i_am("xref-workflow.R")
 
 xrefdata <- here::here("xrefdata")
-if (!dir.exists(xrefdata)) {
-  dir.create(xrefdata)
+gisdata <- here::here("gisdata")
+out_dir <- here::here("gisout")
+
+for (check_dir in c(xrefdata, gisdata, out_dir)) {
+  if (!dir.exists(check_dir)) {
+    dir.create(check_dir)
+  }
 }
 
 xref1 <- read_csv(here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"), skip = 12)
 
 xref2 <- read_csv(here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"), skip = 12)
 
-gisdata <- here::here("gisdata")
-if (!dir.exists(gisdata)) {
-  dir.create(gisdata)
-}
 
 data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip"
 
@@ -120,14 +124,7 @@ check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
 
 unique(ntveg_memb$EFG)
 
-out_dir <- here::here("gisout")
-if (!dir.exists(out_dir)) {
-  dir.create(out_dir)
-}
 
-
-library(fasterize)
-library(raster)
 rez <- 100
 ntveg_xy <- st_transform(NT_ntveg, "EPSG:3112") |>
   filter(!is.na(MAPUNIT)) |>
@@ -164,7 +161,6 @@ for (tid in unique(ntveg_slc$EFG)) {
   }
 }
 
-library(terra)
 
 nt_all <- rast(dir(out_dir, pattern = "res100", full.names = TRUE))
 
