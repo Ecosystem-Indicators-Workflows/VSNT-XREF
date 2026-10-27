@@ -1,0 +1,27 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Cross-referencing the Vegetation survey of the Northern
+  Territory, Australia to the IUCN Global Ecosystem Typology
+message: >-
+  If you use these scripts and dataset, please cite it using
+  the metadata from this file.
+type: dataset
+authors:
+  - given-names: José R.
+    family-names: Ferrer-Paris
+    email: j.ferrer@unsw.edu.au
+    affiliation: UNSW Sydney
+    orcid: 'https://orcid.org/0000-0002-9554-3395'
+  - given-names: Mark G.
+    family-names: Tozer
+    affiliation: UNSW Sydney
+    orcid: 'https://orcid.org/0000-0002-7373-0077'
+repository-code: >-
+  https://github.com/Ecosystem-Indicators-Workflows/VSNT-XREF
+license: CC-BY-4.0
+commit: 58e4d62de3db8dce7f331702210fb22fa147a0f4
+version: 0.0.1
+date-released: '2026-10-28'
