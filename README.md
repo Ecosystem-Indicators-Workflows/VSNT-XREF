@@ -1,3 +1,8 @@
+---
+author: JR Ferrer-Paris
+date: 28 Oct 2026
+---
+
 # Cross-reference of the VSNT to the IUCN GET
 
 Source classification is the *Vegetation survey of the Northern Territory, Australia* (VSNT).
@@ -21,7 +26,7 @@ Cross-referencing table in paired column format were provided by MGT and are ava
 
 ## Software notes
 
-Main code is written in [R](https://cran.r-project.org/) and uses several packages from the [tidyverse](https://tidyverse.org/packages/), [rspatial](https://rspatial.org/index.html) and [r-spatial](https://r-spatial.org/) collections.
+Main code in folder [`scripts`](/scripts/) is written in [R](https://cran.r-project.org/) and uses several packages from the [tidyverse](https://tidyverse.org/packages/), [rspatial](https://rspatial.org/index.html) and [r-spatial](https://r-spatial.org/) collections.
 
 For working with cross-referencing data we use the development version of [*ecoSynthesis*](https://github.com/Ecosystem-Indicators-Workflows/ecoSynthesis). The [*ecoSynthesis* documentation](https://ecosystem-indicators-workflows.github.io/ecoSynthesis/) is work in progress.
 
@@ -39,7 +44,13 @@ pak::pak("hypertidy/fasterize")
 
 *fasterize* uses *Rcpp* and thus requires a compile toolchain to install from source. Testing (and for normal use of *sf* objects) requires *sf*, which requires *GDAL*, *GEOS*, and *PROJ* to be installed.
 
+## Related resources
 
+This repository is part of the **Ecosystem Indicator Workflows** project. Visit the [project page](https://ardc.edu.au/project/ecosystem-indicator-workflows/) (ARDC) and [project website](https://ecosystem-indicators-workflows.github.io/).
+
+## Acknowledgements
+
+The Ecosystem Indicator Workflows is a co-investment partnership with the Australian Research Data Commons (ARDC) through the Planet Research Data Commons (DOI: [10.3565/j5sq-a757](http://doi.org/10.3565/j5sq-a757)). The ARDC is enabled by the Australian Government’s National Collaborative Research Infrastructure Strategy (NCRIS).  
 
 ## References
 
