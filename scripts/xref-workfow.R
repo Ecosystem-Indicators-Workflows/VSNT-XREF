@@ -115,9 +115,17 @@ list(
 
 # ---- Load the crosswalk data and NT vegetation shapefile --------------------------------------------
 
-xref1 <- read_csv(here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"), skip = 12)
+xref1 <- read_csv(
+  here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"),
+  skip = 12,
+  show_col_types = FALSE
+)
 
-xref2 <- read_csv(here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"), skip = 12)
+xref2 <- read_csv(
+  here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"),
+  skip = 12,
+  show_col_types = FALSE
+)
 
 NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
 
