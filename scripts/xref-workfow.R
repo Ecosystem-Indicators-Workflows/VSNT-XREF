@@ -96,100 +96,7 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
   }
 }
 
-# ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
-
-list(
-  nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
-  veg_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
-) |>
-  purrr::walk(
-    ~ get_data(
-      data_url = .x,
-      output_file = {
-        here::here(gisdata, urltools::param_get(.x, "realfilename"))
-      },
-      gisdata_path = gisdata,
-      overwrite = FALSE
-    )
-  )
-
-# ---- Load the crosswalk data and NT vegetation shapefile --------------------------------------------
-
-xref1 <- read_csv(
-  here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"),
-  skip = 12,
-  show_col_types = FALSE
-)
-
-xref2 <- read_csv(
-  here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"),
-  skip = 12,
-  show_col_types = FALSE
-)
-
-NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
-
-# ---- Create a lookup table for the NT vegetation data ------------------------------------------------
-
-ntveg_LUT <- NT_ntveg |>
-  st_drop_geometry() |>
-  filter(!is.na(MAPUNIT)) |>
-  dplyr::select(
-    MAPUNIT,
-    ENV_DESC,
-    L5_ASSOC_1,
-    L5_ASSOC_2,
-    L5_ASSOC_3,
-    L5_ASSOC_4,
-    L5_ASSOC_5,
-    L5_ASSOC_6
-  ) |>
-  unique() |>
-  lookup_tbl("MAPUNIT", "ENV_DESC")
-
-# ---- Pivot the membership tables from wide to long format and combine them into a single table ----------------------------
-
-ntveg_round1 <- pivot_wide_membership_table(
-  xref1,
-  "MAPUNIT",
-  sprintf("EFG_%s", 1:3),
-  sprintf("memb_%s", 1:3),
-  expert_name = "MGT",
-  round_nr = 1
-) |>
-  membership_tbl("MAPUNIT", "EFG", "memb", "expert", "round")
-
-
-ntveg_round2 <- pivot_wide_membership_table(
-  xref2,
-  "MAPUNIT",
-  sprintf("EFG_%s", 1:3),
-  sprintf("memb_%s", 1:3),
-  expert_name = "MGT",
-  round_nr = 2
-) |>
-  membership_tbl("MAPUNIT", "EFG", "memb", "expert", "round")
-
-ntveg_memb <-
-  bind_rows(ntveg_round1, ntveg_round2) |>
-  arrange(MAPUNIT) |>
-  filter(!is.na(EFG))
-
-IUCN_GET <- lookup_tbl(IUCN_GET_LUT, "efg_id", "efg_name")
-
-check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
-
-unique(ntveg_memb$EFG)
-
-# ---- Create a raster for each EFG and save it to the output directory --------------------------------------------
-
-rez <- 100
-ntveg_xy <- st_transform(NT_ntveg, "EPSG:3112") |>
-  filter(!is.na(MAPUNIT)) |>
-  mutate(MAPUNIT = as.numeric(MAPUNIT))
-ntveg_raster <- raster(ntveg_xy, res = rez)
-
-ntveg_slc <- filter(ntveg_memb, round == 2)
+# function to create a raster layer for a given target_id (EFG) and save it to the output directory
 
 make_target_raster_layer <- function(
   target_id,
@@ -249,6 +156,101 @@ make_target_raster_layer <- function(
     writeRaster(k_raster, path, overwrite = overwrite)
   }
 }
+
+# ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
+
+list(
+  nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
+  veg_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
+) |>
+  purrr::walk(
+    ~ get_data(
+      data_url = .x,
+      output_file = {
+        here::here(gisdata, urltools::param_get(.x, "realfilename"))
+      },
+      gisdata_path = gisdata,
+      overwrite = FALSE
+    )
+  )
+
+# ---- Load the crosswalk data and NT vegetation shapefile --------------------------------------------
+
+xref1 <- read_csv(
+  here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"),
+  skip = 12,
+  show_col_types = FALSE
+)
+
+xref2 <- read_csv(
+  here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"),
+  skip = 12,
+  show_col_types = FALSE
+)
+
+NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
+
+# ---- Create a lookup table for the NT vegetation data ------------------------------------------------
+
+ntveg_LUT <- NT_ntveg |>
+  st_drop_geometry() |>
+  filter(!is.na(MAPUNIT)) |>
+  dplyr::select(
+    MAPUNIT,
+    ENV_DESC,
+    L5_ASSOC_1,
+    L5_ASSOC_2,
+    L5_ASSOC_3,
+    L5_ASSOC_4,
+    L5_ASSOC_5,
+    L5_ASSOC_6
+  ) |>
+  unique() |>
+  lookup_tbl("MAPUNIT", "ENV_DESC")
+
+# ---- Pivot the membership tables from wide to long format and combine them into a single table ----------------------------
+
+ntveg_round1 <- pivot_wide_membership_table(
+  xref1,
+  "MAPUNIT",
+  sprintf("EFG_%s", 1:3), #TODO need auto handling of dynamic columns for EFG and membership values
+  sprintf("memb_%s", 1:3),
+  expert_name = "MGT",
+  round_nr = 1
+) |>
+  membership_tbl("MAPUNIT", "EFG", "memb", "expert", "round")
+
+
+ntveg_round2 <- pivot_wide_membership_table(
+  xref2,
+  "MAPUNIT",
+  sprintf("EFG_%s", 1:3),
+  sprintf("memb_%s", 1:3),
+  expert_name = "MGT",
+  round_nr = 2
+) |>
+  membership_tbl("MAPUNIT", "EFG", "memb", "expert", "round")
+
+ntveg_memb <-
+  bind_rows(ntveg_round1, ntveg_round2) |>
+  arrange(MAPUNIT) |>
+  filter(!is.na(EFG))
+
+IUCN_GET <- lookup_tbl(IUCN_GET_LUT, "efg_id", "efg_name")
+
+check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
+
+unique(ntveg_memb$EFG)
+
+# ---- Create a raster for each EFG and save it to the output directory --------------------------------------------
+
+rez <- 100
+ntveg_xy <- st_transform(NT_ntveg, "EPSG:3112") |>
+  filter(!is.na(MAPUNIT)) |>
+  mutate(MAPUNIT = as.numeric(MAPUNIT))
+ntveg_raster <- raster(ntveg_xy, res = rez)
+
+ntveg_slc <- filter(ntveg_memb, round == 2)
 
 purrr::walk(
   unique(ntveg_slc$EFG),
