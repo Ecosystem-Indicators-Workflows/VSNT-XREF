@@ -134,7 +134,7 @@ NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
 ntveg_LUT <- NT_ntveg |>
   st_drop_geometry() |>
   filter(!is.na(MAPUNIT)) |>
-  select(
+  dplyr::select(
     MAPUNIT,
     ENV_DESC,
     L5_ASSOC_1,
