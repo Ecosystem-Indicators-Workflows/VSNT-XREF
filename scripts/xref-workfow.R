@@ -173,6 +173,64 @@ ntveg_raster <- raster(ntveg_xy, res = rez)
 
 ntveg_slc <- filter(ntveg_memb, round == 2)
 
+make_target_raster_layer <- function(
+  target_id,
+  survey_raster,
+  survey_xy,
+  survey_slc,
+  rez = 100,
+  dir = NULL,
+  print = FALSE,
+  plot = FALSE,
+  write = TRUE,
+  overwrite = FALSE
+) {
+  if (!target_id %in% survey_slc$EFG) {
+    cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
+  }
+
+  if (write) {
+    if (!fs::dir_exists(dir)) {
+      cli::cli_abort(sprintf("Directory %s does not exist", dir))
+    }
+    path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
+    cli::cli_alert(
+      "write = TRUE",
+      "writing {path}"
+    )
+  }
+
+  sum_membs <- survey_slc |>
+    group_by(MAPUNIT) |>
+    summarise(
+      k = sum(if_else(EFG == target_id, memb, 0)),
+      total = sum(memb),
+      prop = k / total
+    )
+
+  ntveg_k <- survey_xy |> left_join(sum_membs, by = "MAPUNIT")
+  k_raster <- fasterize(ntveg_k, survey_raster, field = "prop", fun = "sum")
+
+  if (print) {
+    print(sum(k_raster@data@values, na.rm = T))
+  }
+
+  if (plot) {
+    plot(k_raster)
+  }
+
+  if (write) {
+    if (file.exists(path) && !overwrite) {
+      cli::cli_abort("{path} already exists, skipping write")
+    } else if (file.exists(path) && overwrite) {
+      cli::cli_inform("{path} already exists, overwriting")
+    }
+    writeRaster(k_raster, path, overwrite = overwrite)
+  }
+
+  return(k_raster)
+}
+
 for (tid in unique(ntveg_slc$EFG)) {
   cat(sprintf("Starting %s: %s // ", tid, date()))
   out_file <- here::here(out_dir, sprintf("%s-res%s.tiff", tid, rez))
