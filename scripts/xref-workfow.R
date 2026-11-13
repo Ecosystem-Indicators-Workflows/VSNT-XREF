@@ -96,6 +96,67 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
   }
 }
 
+# function to create a raster layer for a given target_id (EFG) and save it to the output directory
+
+make_target_raster_layer <- function(
+  target_id,
+  survey_raster,
+  survey_xy,
+  survey_slc,
+  rez = 100,
+  dir = NULL,
+  print = FALSE,
+  plot = FALSE,
+  write = TRUE,
+  overwrite = FALSE
+) {
+  if (sum(print, plot, write) == 0) {
+    cli::cli_abort("At least one of print, plot, or write must be TRUE")
+  }
+
+  if (!target_id %in% survey_slc$EFG) {
+    cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
+  }
+
+  if (write) {
+    if (!fs::dir_exists(dir)) {
+      cli::cli_abort(sprintf("Directory %s does not exist", dir))
+    }
+    path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
+    cli::cli_alert(
+      c("write = TRUE", "writing {path}")
+    )
+  }
+
+  sum_membs <- survey_slc |>
+    group_by(MAPUNIT) |>
+    summarise(
+      k = sum(if_else(EFG == target_id, memb, 0)),
+      total = sum(memb),
+      prop = k / total
+    )
+
+  ntveg_k <- survey_xy |> left_join(sum_membs, by = "MAPUNIT")
+  k_raster <- fasterize(ntveg_k, survey_raster, field = "prop", fun = "sum")
+
+  if (print) {
+    print(sum(k_raster@data@values, na.rm = T))
+  }
+
+  if (plot) {
+    plot(k_raster)
+  }
+
+  if (write) {
+    if (file.exists(path) && !overwrite) {
+      cli::cli_abort("{path} already exists, skipping write")
+    } else if (file.exists(path) && overwrite) {
+      cli::cli_inform("{path} already exists, overwriting")
+    }
+    writeRaster(k_raster, path, overwrite = overwrite)
+  }
+}
+
 # ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
 
 list(
@@ -152,7 +213,7 @@ ntveg_LUT <- NT_ntveg |>
 ntveg_round1 <- pivot_wide_membership_table(
   xref1,
   "MAPUNIT",
-  sprintf("EFG_%s", 1:3),
+  sprintf("EFG_%s", 1:3), #TODO need auto handling of dynamic columns for EFG and membership values
   sprintf("memb_%s", 1:3),
   expert_name = "MGT",
   round_nr = 1
@@ -191,91 +252,24 @@ ntveg_raster <- raster(ntveg_xy, res = rez)
 
 ntveg_slc <- filter(ntveg_memb, round == 2)
 
-make_target_raster_layer <- function(
-  target_id,
-  survey_raster,
-  survey_xy,
-  survey_slc,
-  rez = 100,
-  dir = NULL,
-  print = FALSE,
-  plot = FALSE,
-  write = TRUE,
-  overwrite = FALSE
-) {
-  if (!target_id %in% survey_slc$EFG) {
-    cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
-  }
+purrr::walk(
+  unique(ntveg_slc$EFG),
+  ~ make_target_raster_layer(
+    target_id = .x,
+    survey_raster = ntveg_raster,
+    survey_xy = ntveg_xy,
+    survey_slc = ntveg_slc,
+    rez = rez,
+    dir = out_dir,
+    print = TRUE,
+    plot = FALSE,
+    write = TRUE,
+    overwrite = TRUE
+  )
+)
 
-  if (write) {
-    if (!fs::dir_exists(dir)) {
-      cli::cli_abort(sprintf("Directory %s does not exist", dir))
-    }
-    path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
-    cli::cli_alert(
-      "write = TRUE",
-      "writing {path}"
-    )
-  }
-
-  sum_membs <- survey_slc |>
-    group_by(MAPUNIT) |>
-    summarise(
-      k = sum(if_else(EFG == target_id, memb, 0)),
-      total = sum(memb),
-      prop = k / total
-    )
-
-  ntveg_k <- survey_xy |> left_join(sum_membs, by = "MAPUNIT")
-  k_raster <- fasterize(ntveg_k, survey_raster, field = "prop", fun = "sum")
-
-  if (print) {
-    print(sum(k_raster@data@values, na.rm = T))
-  }
-
-  if (plot) {
-    plot(k_raster)
-  }
-
-  if (write) {
-    if (file.exists(path) && !overwrite) {
-      cli::cli_abort("{path} already exists, skipping write")
-    } else if (file.exists(path) && overwrite) {
-      cli::cli_inform("{path} already exists, overwriting")
-    }
-    writeRaster(k_raster, path, overwrite = overwrite)
-  }
-
-  return(k_raster)
-}
-
-for (tid in unique(ntveg_slc$EFG)) {
-  cat(sprintf("Starting %s: %s // ", tid, date()))
-  out_file <- here::here(out_dir, sprintf("%s-res%s.tiff", tid, rez))
-  if (file.exists(out_file)) {
-    cat(sprintf("%s already exists\n", out_file))
-  } else {
-    if (tid %in% ntveg_slc$EFG) {
-      sum_membs <- ntveg_slc |>
-        group_by(MAPUNIT) |>
-        summarise(
-          k = sum(if_else(EFG == tid, memb, 0)),
-          total = sum(memb),
-          prop = k / total
-        )
-
-      ntveg_k <- ntveg_xy |> left_join(sum_membs, by = "MAPUNIT")
-      k_raster <- fasterize(ntveg_k, ntveg_raster, field = "prop", fun = "sum")
-
-      print(sum(k_raster@data@values, na.rm = T))
-      plot(k_raster)
-
-      writeRaster(k_raster, out_file)
-    } else {
-      cat(sprintf("%s not found\n", tid))
-    }
-  }
-}
+# Create a raster stack of all the EFG rasters
+# plot the maximum membership and the EFG with the maximum membership
 
 nt_all <- rast(dir(out_dir, pattern = "res100", full.names = TRUE))
 
