@@ -217,8 +217,7 @@ make_target_raster_layer <- function(
     }
     path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
     cli::cli_alert(
-      "write = TRUE",
-      "writing {path}"
+      c("write = TRUE", "writing {path}")
     )
   }
 
