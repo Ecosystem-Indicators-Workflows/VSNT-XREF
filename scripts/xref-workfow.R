@@ -266,6 +266,9 @@ purrr::walk(
   )
 )
 
+# Create a raster stack of all the EFG rasters
+# plot the maximum membership and the EFG with the maximum membership
+
 nt_all <- rast(dir(out_dir, pattern = "res100", full.names = TRUE))
 
 nt_which <- app(nt_all, fun = "which.max")
