@@ -43,6 +43,7 @@ get_data <- function(data_url, output_file, gisdata, ..., overwrite = FALSE) {
     )
 }
 
+# Create a function to pivot the membership tables from wide to long format 
 
 pivot_wide_membership_table <- function(
   xref,
