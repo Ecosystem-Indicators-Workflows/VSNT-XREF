@@ -248,37 +248,23 @@ make_target_raster_layer <- function(
     }
     writeRaster(k_raster, path, overwrite = overwrite)
   }
-
-  return(k_raster)
 }
 
-for (tid in unique(ntveg_slc$EFG)) {
-  cat(sprintf("Starting %s: %s // ", tid, date()))
-  out_file <- here::here(out_dir, sprintf("%s-res%s.tiff", tid, rez))
-  if (file.exists(out_file)) {
-    cat(sprintf("%s already exists\n", out_file))
-  } else {
-    if (tid %in% ntveg_slc$EFG) {
-      sum_membs <- ntveg_slc |>
-        group_by(MAPUNIT) |>
-        summarise(
-          k = sum(if_else(EFG == tid, memb, 0)),
-          total = sum(memb),
-          prop = k / total
-        )
-
-      ntveg_k <- ntveg_xy |> left_join(sum_membs, by = "MAPUNIT")
-      k_raster <- fasterize(ntveg_k, ntveg_raster, field = "prop", fun = "sum")
-
-      print(sum(k_raster@data@values, na.rm = T))
-      plot(k_raster)
-
-      writeRaster(k_raster, out_file)
-    } else {
-      cat(sprintf("%s not found\n", tid))
-    }
-  }
-}
+purrr::walk(
+  unique(ntveg_slc$EFG),
+  ~ make_target_raster_layer(
+    target_id = .x,
+    survey_raster = ntveg_raster,
+    survey_xy = ntveg_xy,
+    survey_slc = ntveg_slc,
+    rez = rez,
+    dir = out_dir,
+    print = TRUE,
+    plot = FALSE,
+    write = TRUE,
+    overwrite = TRUE
+  )
+)
 
 nt_all <- rast(dir(out_dir, pattern = "res100", full.names = TRUE))
 
