@@ -11,39 +11,48 @@ library(terra)
 
 # Create a function to download and unzip the NT vegetation data
 
-get_data <- function(data_url, output_file, gisdata, ..., overwrite = FALSE) {
-  rlang::check_required(data_url, output_file, gisdata)
+get_data <- function(
+  data_url,
+  output_file,
+  gisdata_path,
+  ...,
+  overwrite = FALSE
+) {
+  rlang::check_required(data_url, output_file, gisdata_path)
 
   defaults <- list(
     mode = "wb",
-      method = "wget",
-      extra = c("-c")
+    method = "wget",
+    extra = c("-c")
   )
-  
+
   user_args <- dots_list(..., .homonyms = "error")
-  
+
   final_args <- modifyList(defaults, user_args, keep.null = TRUE)
 
   if (file.exists(output_file) && !overwrite) {
-    cli::cli_abort(sprintf("%s already exists, skipping download\n", output_file))
+    cli::cli_abort(sprintf(
+      "%s already exists, skipping download\n",
+      output_file
+    ))
   } else if (file.exists(output_file) && overwrite) {
     cli::cli_inform(sprintf("%s already exists, overwriting\n", output_file))
-  } 
-  cli::cli_alert("Downloading {data_url} to {output_file}") 
-    rlang::inject(
-      download.file(
+  }
+  cli::cli_alert("Downloading {data_url} to {output_file}")
+  rlang::inject(
+    download.file(
       data_url,
       destfile = output_file,
       !!!final_args
     )
   )
-  cli::cli_alert("Unzipping {output_file} to {gisdata}")
-    rlang::inject(
-      unzip(output_file, exdir = gisdata)
-    )
+  cli::cli_alert("Unzipping {output_file} to {gisdata_path}")
+  rlang::inject(
+    unzip(output_file, exdir = gisdata_path)
+  )
 }
 
-# Create a function to pivot the membership tables from wide to long format 
+# Create a function to pivot the membership tables from wide to long format
 
 pivot_wide_membership_table <- function(
   xref,
@@ -87,27 +96,36 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
   }
 }
 
-# ---- Download and unzip the NT vegetation data ------------------------------------------------
-# Get NVIS data
-data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip"
+# ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
 
-output_file <- here::here(gisdata, "VegResources_NVIS_1M.zip")
-
-get_data(data_url, output_file, gisdata, overwrite = FALSE)
-
-# Get NT Veg data
-data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
-
-output_file <- here::here(gisdata, "VegResources_ntveg_1M.zip")
-
-get_data(data_url, output_file, gisdata, overwrite = FALSE)
-
+list(
+  nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
+  veg_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
+) |>
+  purrr::walk(
+    ~ get_data(
+      data_url = .x,
+      output_file = {
+        here::here(gisdata, urltools::param_get(.x, "realfilename"))
+      },
+      gisdata_path = gisdata,
+      overwrite = FALSE
+    )
+  )
 
 # ---- Load the crosswalk data and NT vegetation shapefile --------------------------------------------
 
-xref1 <- read_csv(here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"), skip = 12)
+xref1 <- read_csv(
+  here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"),
+  skip = 12,
+  show_col_types = FALSE
+)
 
-xref2 <- read_csv(here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"), skip = 12)
+xref2 <- read_csv(
+  here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"),
+  skip = 12,
+  show_col_types = FALSE
+)
 
 NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
 
@@ -116,7 +134,7 @@ NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
 ntveg_LUT <- NT_ntveg |>
   st_drop_geometry() |>
   filter(!is.na(MAPUNIT)) |>
-  select(
+  dplyr::select(
     MAPUNIT,
     ENV_DESC,
     L5_ASSOC_1,
@@ -172,6 +190,64 @@ ntveg_xy <- st_transform(NT_ntveg, "EPSG:3112") |>
 ntveg_raster <- raster(ntveg_xy, res = rez)
 
 ntveg_slc <- filter(ntveg_memb, round == 2)
+
+make_target_raster_layer <- function(
+  target_id,
+  survey_raster,
+  survey_xy,
+  survey_slc,
+  rez = 100,
+  dir = NULL,
+  print = FALSE,
+  plot = FALSE,
+  write = TRUE,
+  overwrite = FALSE
+) {
+  if (!target_id %in% survey_slc$EFG) {
+    cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
+  }
+
+  if (write) {
+    if (!fs::dir_exists(dir)) {
+      cli::cli_abort(sprintf("Directory %s does not exist", dir))
+    }
+    path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
+    cli::cli_alert(
+      "write = TRUE",
+      "writing {path}"
+    )
+  }
+
+  sum_membs <- survey_slc |>
+    group_by(MAPUNIT) |>
+    summarise(
+      k = sum(if_else(EFG == target_id, memb, 0)),
+      total = sum(memb),
+      prop = k / total
+    )
+
+  ntveg_k <- survey_xy |> left_join(sum_membs, by = "MAPUNIT")
+  k_raster <- fasterize(ntveg_k, survey_raster, field = "prop", fun = "sum")
+
+  if (print) {
+    print(sum(k_raster@data@values, na.rm = T))
+  }
+
+  if (plot) {
+    plot(k_raster)
+  }
+
+  if (write) {
+    if (file.exists(path) && !overwrite) {
+      cli::cli_abort("{path} already exists, skipping write")
+    } else if (file.exists(path) && overwrite) {
+      cli::cli_inform("{path} already exists, overwriting")
+    }
+    writeRaster(k_raster, path, overwrite = overwrite)
+  }
+
+  return(k_raster)
+}
 
 for (tid in unique(ntveg_slc$EFG)) {
   cat(sprintf("Starting %s: %s // ", tid, date()))

@@ -1,3 +1,4 @@
-gisout/
-gisdata/
+data/xrefdata/
+data/gisout/
+data/gisdata/
 .vscode/
