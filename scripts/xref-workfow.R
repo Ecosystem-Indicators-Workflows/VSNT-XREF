@@ -1,4 +1,5 @@
 library(ecoSynthesis)
+library(rlang)
 library(sf)
 library(readr)
 library(dplyr)
@@ -6,61 +7,42 @@ library(fasterize)
 library(raster)
 library(terra)
 
-here::i_am("xref-workflow.R")
+# ---- Functions ----------------------------------------------------------------
 
-xrefdata <- here::here("xrefdata")
-gisdata <- here::here("gisdata")
-out_dir <- here::here("gisout")
+# Create a function to download and unzip the NT vegetation data
 
-for (check_dir in c(xrefdata, gisdata, out_dir)) {
-  if (!dir.exists(check_dir)) {
-    dir.create(check_dir)
-  }
+get_data <- function(data_url, output_file, gisdata, ..., overwrite = FALSE) {
+  rlang::check_required(data_url, output_file, gisdata)
+
+  defaults <- list(
+    mode = "wb",
+      method = "wget",
+      extra = c("-c")
+  )
+  
+  user_args <- dots_list(..., .homonyms = "error")
+  
+  final_args <- modifyList(defaults, user_args, keep.null = TRUE)
+
+  if (file.exists(output_file) && !overwrite) {
+    cli::cli_abort(sprintf("%s already exists, skipping download\n", output_file))
+  } else if (file.exists(output_file) && overwrite) {
+    cli::cli_inform(sprintf("%s already exists, overwriting\n", output_file))
+  } 
+  cli::cli_alert("Downloading {data_url} to {output_file}") 
+    rlang::inject(
+      download.file(
+      data_url,
+      destfile = output_file,
+      !!!final_args
+    )
+  )
+  cli::cli_alert("Unzipping {output_file} to {gisdata}")
+    rlang::inject(
+      unzip(output_file, exdir = gisdata)
+    )
 }
 
-xref1 <- read_csv(here::here(xrefdata, "MGT_V1_ntveg_1M_290925.csv"), skip = 12)
-
-xref2 <- read_csv(here::here(xrefdata, "MGT_V2_ntveg_1M_151026.csv"), skip = 12)
-
-
-data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip"
-
-output_file <- here::here(gisdata, "VegResources_NVIS_1M.zip")
-
-data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
-
-output_file <- here::here(gisdata, "VegResources_ntveg_1M.zip")
-
-download.file(
-  data_url,
-  destfile = output_file,
-  mode = "wb",
-  method = "wget",
-  extra = c("-c")
-)
-
-unzip(
-  output_file,
-  exdir = gisdata
-)
-
-NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
-
-ntveg_LUT <- NT_ntveg |>
-  st_drop_geometry() |>
-  filter(!is.na(MAPUNIT)) |>
-  select(
-    MAPUNIT,
-    ENV_DESC,
-    L5_ASSOC_1,
-    L5_ASSOC_2,
-    L5_ASSOC_3,
-    L5_ASSOC_4,
-    L5_ASSOC_5,
-    L5_ASSOC_6
-  ) |>
-  unique() |>
-  lookup_tbl("MAPUNIT", "ENV_DESC")
 
 pivot_wide_membership_table <- function(
   xref,
