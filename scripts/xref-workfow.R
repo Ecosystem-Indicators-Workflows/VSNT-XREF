@@ -203,6 +203,10 @@ make_target_raster_layer <- function(
   write = TRUE,
   overwrite = FALSE
 ) {
+  if (sum(print, plot, write) == 0) {
+    cli::cli_abort("At least one of print, plot, or write must be TRUE")
+  }
+
   if (!target_id %in% survey_slc$EFG) {
     cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
   }
