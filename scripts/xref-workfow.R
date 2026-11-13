@@ -11,39 +11,48 @@ library(terra)
 
 # Create a function to download and unzip the NT vegetation data
 
-get_data <- function(data_url, output_file, gisdata, ..., overwrite = FALSE) {
-  rlang::check_required(data_url, output_file, gisdata)
+get_data <- function(
+  data_url,
+  output_file,
+  gisdata_path,
+  ...,
+  overwrite = FALSE
+) {
+  rlang::check_required(data_url, output_file, gisdata_path)
 
   defaults <- list(
     mode = "wb",
-      method = "wget",
-      extra = c("-c")
+    method = "wget",
+    extra = c("-c")
   )
-  
+
   user_args <- dots_list(..., .homonyms = "error")
-  
+
   final_args <- modifyList(defaults, user_args, keep.null = TRUE)
 
   if (file.exists(output_file) && !overwrite) {
-    cli::cli_abort(sprintf("%s already exists, skipping download\n", output_file))
+    cli::cli_abort(sprintf(
+      "%s already exists, skipping download\n",
+      output_file
+    ))
   } else if (file.exists(output_file) && overwrite) {
     cli::cli_inform(sprintf("%s already exists, overwriting\n", output_file))
-  } 
-  cli::cli_alert("Downloading {data_url} to {output_file}") 
-    rlang::inject(
-      download.file(
+  }
+  cli::cli_alert("Downloading {data_url} to {output_file}")
+  rlang::inject(
+    download.file(
       data_url,
       destfile = output_file,
       !!!final_args
     )
   )
-  cli::cli_alert("Unzipping {output_file} to {gisdata}")
-    rlang::inject(
-      unzip(output_file, exdir = gisdata)
-    )
+  cli::cli_alert("Unzipping {output_file} to {gisdata_path}")
+  rlang::inject(
+    unzip(output_file, exdir = gisdata_path)
+  )
 }
 
-# Create a function to pivot the membership tables from wide to long format 
+# Create a function to pivot the membership tables from wide to long format
 
 pivot_wide_membership_table <- function(
   xref,
@@ -87,21 +96,22 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
   }
 }
 
-# ---- Download and unzip the NT vegetation data ------------------------------------------------
-# Get NVIS data
-data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip"
+# ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
 
-output_file <- here::here(gisdata, "VegResources_NVIS_1M.zip")
-
-get_data(data_url, output_file, gisdata, overwrite = FALSE)
-
-# Get NT Veg data
-data_url <- "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
-
-output_file <- here::here(gisdata, "VegResources_ntveg_1M.zip")
-
-get_data(data_url, output_file, gisdata, overwrite = FALSE)
-
+list(
+  nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
+  veg_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
+) |>
+  purrr::walk(
+    ~ get_data(
+      data_url = .x,
+      output_file = {
+        here::here(gisdata, urltools::param_get(.x, "realfilename"))
+      },
+      gisdata_path = gisdata,
+      overwrite = FALSE
+    )
+  )
 
 # ---- Load the crosswalk data and NT vegetation shapefile --------------------------------------------
 
