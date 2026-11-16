@@ -1,4 +1,5 @@
-data/xrefdata/
 data/gisout/
 data/gisdata/
 .vscode/
+.DS_Store
+
