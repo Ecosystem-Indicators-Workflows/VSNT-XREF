@@ -17,9 +17,9 @@ get_data <- function(
     extra = c("-c")
   )
 
-  user_args <- dots_list(..., .homonyms = "error")
+  user_args <- rlang::dots_list(..., .homonyms = "error")
 
-  final_args <- modifyList(defaults, user_args, keep.null = TRUE)
+  final_args <- rlang::modifyList(defaults, user_args, keep.null = TRUE)
 
   if (file.exists(output_file) && !overwrite) {
     cli::cli_abort(sprintf(
@@ -67,10 +67,10 @@ pivot_wide_membership_table <- function(
     )
 
   if (!is.null(expert_name)) {
-    memb_table <- mutate(memb_table, expert = expert_name)
+    memb_table <- dplyr::mutate(memb_table, expert = expert_name)
   }
   if (!is.null(round_nr)) {
-    memb_table <- mutate(memb_table, round = round_nr)
+    memb_table <- dplyr::mutate(memb_table, round = round_nr)
   }
   return(memb_table)
 }
