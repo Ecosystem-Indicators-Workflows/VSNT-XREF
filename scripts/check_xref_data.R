@@ -104,7 +104,9 @@ list(
 
 NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
 
-# ---- Create a lookup table for the NT vegetation data ------------------------------------------------
+# ---- Create a lookup tables ------------------------------------------------
+
+## Lookup table source classification - NT vegetation data
 
 ntveg_LUT <- NT_ntveg |>
   st_drop_geometry() |>
@@ -122,6 +124,10 @@ ntveg_LUT <- NT_ntveg |>
   unique() |>
   lookup_tbl("MAPUNIT", "ENV_DESC") |>
   mutate(MAPUNIT = as.numeric(MAPUNIT))
+
+## Lookup table target classification
+
+IUCN_GET <- lookup_tbl(IUCN_GET_LUT, "efg_id", "efg_name")
 
 # ---- Load the crosswalk data --------------------------------------------
 
@@ -168,9 +174,15 @@ ntveg_memb <-
   arrange(MAPUNIT) |>
   filter(!is.na(EFG))
 
-ntveg_memb
+ntveg_memb |>
+  filter(!is.na(memb), memb > 0) |>
+  group_by(round, expert) |>
+  summarise(
+    `source ids` = n_distinct(MAPUNIT),
+    `target ids` = n_distinct(EFG),
+    .groups = "drop"
+  )
 
-IUCN_GET <- lookup_tbl(IUCN_GET_LUT, "efg_id", "efg_name")
 
 debugonce(check_membership)
 
