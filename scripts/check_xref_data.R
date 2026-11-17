@@ -181,6 +181,13 @@ ntveg_memb |>
   anti_join(ntveg_LUT |> mutate(MAPUNIT = as.numeric(MAPUNIT))) |>
   nrow()
 
+# Inversely, every spatial feature can be linked to cross-ref row?
+# should be 0, if not then there are some MAPUNITs in the source lookup table that are not in the membership table
+ntveg_LUT |>
+  mutate(MAPUNIT = as.numeric(MAPUNIT)) |>
+  anti_join(ntveg_memb) |>
+  nrow()
+
 # Every cross-ref row can be linked to target lookup table?
 # should be 0, if not then there are some EFGs in the membership table that are not in the target lookup table
 
