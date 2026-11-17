@@ -143,10 +143,10 @@ clean_membership <- function(x, source, target, action = "filter") {
       )
   }
   if (any(f3)) {
-    message(sprintf("Flagged %s records with not eligible source ids", sum(f3)))
+    message(sprintf("Flagged %s records with ineligible source ids", sum(f3)))
     res <- res |>
       mutate(
-        flag = if_else(f3, paste(flag, "not eligible source", sep = ";"), flag)
+        flag = if_else(f3, paste(flag, "ineligible source", sep = ";"), flag)
       )
   }
   if (any(f4)) {
@@ -189,4 +189,80 @@ clean_membership <- function(x, source, target, action = "filter") {
     }
   }
   res
+}
+
+# replace the `clean_membership` function with a new function using pointblank:: to implement the check functionality, it should check for all the same conditions as the original function and return a pointblank::agent object with the results of the checks. The checks are: NA membership, membership out of bounds, not eligible source ids, invalid target ids, duplicated records, and duplicated assignments. The new function should be called `check_membership_pb` and should take the same arguments as `clean_membership`.
+check_membership_pb <- function(x, source, target, interrogate = TRUE) {
+  message("Using `check_membership_pb` from scripts/functions.R")
+  stopifnot(inherits(x, "membership_tbl"))
+  stopifnot(inherits(source, "lookup_tbl"))
+  stopifnot(inherits(target, "lookup_tbl"))
+
+  membership <- attr(x, "membership")
+  source_id <- attr(x, "source_id")
+  target_id <- attr(x, "target_id")
+  round_nr <- attr(x, "round")
+  interp_name <- attr(x, "interpreter")
+
+  agent <- pointblank::create_agent(tbl = x)
+
+  # Check for NA membership
+  agent <- pointblank::col_vals_not_null(
+    agent,
+    columns = membership,
+    label = "NA membership"
+  )
+
+  # Check for membership out of bounds
+  agent <- pointblank::col_vals_between(
+    agent,
+    columns = membership,
+    left = 0,
+    right = 1,
+    label = "membership out of bounds"
+  )
+
+  # Check for ineligible source ids
+  sid <- x[[source_id]]
+  vid <- rlang::sym(attr(source, "id"))
+  elig <- rlang::sym(attr(source, "eligible"))
+  eid <- dplyr::filter(source, !!elig) |> dplyr::pull(!!vid)
+  agent <- pointblank::col_vals_in_set(
+    agent,
+    columns = source_id,
+    set = eid,
+    label = "ineligible source ids"
+  )
+
+  # Check for invalid target ids
+  tid <- x[[target_id]]
+  vid <- attr(target, "id")
+  elig <- attr(target, "eligible")
+  eid <- target[[vid]][target[[elig]]]
+  agent <- pointblank::col_vals_in_set(
+    agent,
+    columns = target_id,
+    set = eid,
+    label = "invalid target ids"
+  )
+
+  # Check for duplicated records
+  agent <- pointblank::rows_distinct(agent, label = "duplicated records")
+
+  # Check for duplicated assignments
+  agent <- pointblank::rows_distinct(
+    agent,
+    columns = c(source_id, target_id, interp_name, round_nr),
+    label = "duplicated assignments"
+  )
+
+  if (interrogate) {
+    agent <- pointblank::interrogate(
+      agent,
+      extract_failed = TRUE,
+      show_step_label = TRUE
+    )
+  }
+
+  return(agent)
 }
