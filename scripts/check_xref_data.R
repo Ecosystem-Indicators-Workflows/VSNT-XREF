@@ -120,7 +120,8 @@ ntveg_LUT <- NT_ntveg |>
     L5_ASSOC_6
   ) |>
   unique() |>
-  lookup_tbl("MAPUNIT", "ENV_DESC")
+  lookup_tbl("MAPUNIT", "ENV_DESC") |>
+  mutate(MAPUNIT = as.numeric(MAPUNIT))
 
 # ---- Load the crosswalk data --------------------------------------------
 
@@ -178,13 +179,12 @@ check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
 # Every cross-ref row can be linked to spatial feature?
 # should be 0, if not then there are some MAPUNITs in the membership table that are not in the source lookup table
 ntveg_memb |>
-  anti_join(ntveg_LUT |> mutate(MAPUNIT = as.numeric(MAPUNIT))) |>
+  anti_join(ntveg_LUT) |>
   nrow()
 
 # Inversely, every spatial feature can be linked to cross-ref row?
 # should be 0, if not then there are some MAPUNITs in the source lookup table that are not in the membership table
 ntveg_LUT |>
-  mutate(MAPUNIT = as.numeric(MAPUNIT)) |>
   anti_join(ntveg_memb) |>
   nrow()
 
