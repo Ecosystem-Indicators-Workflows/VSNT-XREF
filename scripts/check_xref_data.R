@@ -175,12 +175,20 @@ debugonce(check_membership)
 
 check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
 
+# Every cross-ref row can be linked to spatial feature?
 # should be 0, if not then there are some MAPUNITs in the membership table that are not in the source lookup table
 ntveg_memb |>
   anti_join(ntveg_LUT |> mutate(MAPUNIT = as.numeric(MAPUNIT))) |>
   nrow()
 
+# Every cross-ref row can be linked to target lookup table?
 # should be 0, if not then there are some EFGs in the membership table that are not in the target lookup table
-ntveg_memb |>
-  anti_join(IUCN_GET, by = c("EFG" = "efg_id")) |>
-  count(MAPUNIT, EFG)
+
+ntveg_memb_missing_efgs <- ntveg_memb |>
+  anti_join(IUCN_GET, by = c("EFG" = "efg_id"))
+
+ntveg_memb_missing_efgs |>
+  nrow()
+
+distinct(ntveg_memb_missing_efgs, EFG) |> unlist() |> gluedown::md_bullet()
+distinct(ntveg_memb_missing_efgs, MAPUNIT) |> unlist() |> gluedown::md_bullet()
