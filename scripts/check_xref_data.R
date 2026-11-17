@@ -8,7 +8,7 @@ library(fasterize)
 library(raster)
 library(terra)
 
-# ---- Create directories if they don't exist -------------------------------------------------
+# ---- Create directories if not present -------------------------------------------------
 
 ### Paths
 xrefdata <- here::here("data/xrefdata")
@@ -23,67 +23,6 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
 
 ### Custom functions
 source(here::here("scripts", "functions.R"))
-
-# function to create a raster layer for a given target_id (EFG) and save it to the output directory
-
-make_target_raster_layer <- function(
-  target_id,
-  survey_raster,
-  survey_xy,
-  survey_slc,
-  rez = 100,
-  dir = NULL,
-  print = FALSE,
-  plot = FALSE,
-  write = TRUE,
-  overwrite = FALSE
-) {
-  if (sum(print, plot, write) == 0) {
-    cli::cli_abort("At least one of print, plot, or write must be TRUE")
-  }
-
-  if (!target_id %in% survey_slc$EFG) {
-    cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
-  }
-
-  if (write) {
-    if (!fs::dir_exists(dir)) {
-      cli::cli_abort(sprintf("Directory %s does not exist", dir))
-    }
-    path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
-    cli::cli_alert(
-      c("write = TRUE", "writing {path}")
-    )
-  }
-
-  sum_membs <- survey_slc |>
-    group_by(MAPUNIT) |>
-    summarise(
-      k = sum(if_else(EFG == target_id, memb, 0)),
-      total = sum(memb),
-      prop = k / total
-    )
-
-  ntveg_k <- survey_xy |> left_join(sum_membs, by = "MAPUNIT")
-  k_raster <- fasterize(ntveg_k, survey_raster, field = "prop", fun = "sum")
-
-  if (print) {
-    print(sum(k_raster@data@values, na.rm = T))
-  }
-
-  if (plot) {
-    plot(k_raster)
-  }
-
-  if (write) {
-    if (file.exists(path) && !overwrite) {
-      cli::cli_abort("{path} already exists, skipping write")
-    } else if (file.exists(path) && overwrite) {
-      cli::cli_inform("{path} already exists, overwriting")
-    }
-    writeRaster(k_raster, path, overwrite = overwrite)
-  }
-}
 
 # ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
 
@@ -183,8 +122,7 @@ ntveg_memb |>
     .groups = "drop"
   )
 
-
-debugonce(check_membership)
+# debugonce(check_membership)
 
 check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
 

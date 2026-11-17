@@ -191,6 +191,67 @@ clean_membership <- function(x, source, target, action = "filter") {
   res
 }
 
+# function to create a raster layer for a given target_id (EFG) and save it to the output directory
+
+make_target_raster_layer <- function(
+  target_id,
+  survey_raster,
+  survey_xy,
+  survey_slc,
+  rez = 100,
+  dir = NULL,
+  print = FALSE,
+  plot = FALSE,
+  write = TRUE,
+  overwrite = FALSE
+) {
+  if (sum(print, plot, write) == 0) {
+    cli::cli_abort("At least one of print, plot, or write must be TRUE")
+  }
+
+  if (!target_id %in% survey_slc$EFG) {
+    cli::cli_abort(sprintf("%s not found in survey_slc$EFG", target_id))
+  }
+
+  if (write) {
+    if (!fs::dir_exists(dir)) {
+      cli::cli_abort(sprintf("Directory %s does not exist", dir))
+    }
+    path <- here::here(out_dir, sprintf("%s-res%s.tiff", target_id, rez))
+    cli::cli_alert(
+      c("write = TRUE", "writing {path}")
+    )
+  }
+
+  sum_membs <- survey_slc |>
+    group_by(MAPUNIT) |>
+    summarise(
+      k = sum(if_else(EFG == target_id, memb, 0)),
+      total = sum(memb),
+      prop = k / total
+    )
+
+  ntveg_k <- survey_xy |> left_join(sum_membs, by = "MAPUNIT")
+  k_raster <- fasterize(ntveg_k, survey_raster, field = "prop", fun = "sum")
+
+  if (print) {
+    print(sum(k_raster@data@values, na.rm = T))
+  }
+
+  if (plot) {
+    plot(k_raster)
+  }
+
+  if (write) {
+    if (file.exists(path) && !overwrite) {
+      cli::cli_abort("{path} already exists, skipping write")
+    } else if (file.exists(path) && overwrite) {
+      cli::cli_inform("{path} already exists, overwriting")
+    }
+    writeRaster(k_raster, path, overwrite = overwrite)
+  }
+}
+
 # replace the `clean_membership` function with a new function using pointblank:: to implement the check functionality, it should check for all the same conditions as the original function and return a pointblank::agent object with the results of the checks. The checks are: NA membership, membership out of bounds, not eligible source ids, invalid target ids, duplicated records, and duplicated assignments. The new function should be called `check_membership_pb` and should take the same arguments as `clean_membership`.
 check_membership_pb <- function(x, source, target, interrogate = TRUE) {
   message("Using `check_membership_pb` from scripts/functions.R")
