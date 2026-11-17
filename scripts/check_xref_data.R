@@ -7,6 +7,7 @@ library(sf)
 library(fasterize)
 library(raster)
 library(terra)
+# library(pointblank)
 
 # ---- Create directories if not present -------------------------------------------------
 
@@ -20,6 +21,10 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
     dir.create(check_dir)
   }
 }
+
+### Predefined parameters
+
+the_round <- 3
 
 ### Custom functions
 source(here::here("scripts", "functions.R"))
@@ -113,6 +118,20 @@ ntveg_memb <-
   arrange(MAPUNIT) |>
   filter(!is.na(EFG))
 
+## Explore and validate cross-reference data
+
+# checked <- check_membership_pb(
+#   x = ntveg_memb,
+#   source = ntveg_LUT,
+#   target = IUCN_GET
+# )
+
+# checked |>
+#   export_report(filename = here::here(out_dir, "xref_data_check_report.html"))
+
+# checked |> get_sundered_data(type = "pass")
+# checked |> get_sundered_data(type = "fail")
+
 ntveg_memb |>
   filter(!is.na(memb), memb > 0) |>
   group_by(round, expert) |>
@@ -145,7 +164,43 @@ ntveg_memb_missing_efgs <- ntveg_memb |>
   anti_join(IUCN_GET, by = c("EFG" = "efg_id"))
 
 ntveg_memb_missing_efgs |>
+  summarise(n_distinct(MAPUNIT), .by = c(expert, round, EFG))
+
+ntveg_memb_missing_efgs |>
   nrow()
 
 distinct(ntveg_memb_missing_efgs, EFG) |> unlist() |> gluedown::md_bullet()
 distinct(ntveg_memb_missing_efgs, MAPUNIT) |> unlist() |> gluedown::md_bullet()
+
+## Clean membership table by filtering out records with invalid membership values, source IDs, or target IDs
+
+ntveg_memb_check <- clean_membership(
+  x = ntveg_memb,
+  source = ntveg_LUT,
+  target = IUCN_GET,
+  action = "check"
+) # this matches what we expect from the previous checks, so we can proceed to clean the membership table
+
+ntveg_memb_check |>
+  drop_na(flag) |>
+  summarise(
+    source_units = n_distinct(MAPUNIT),
+    .by = c(expert, round, flag)
+  )
+
+ntveg_memb_clean <- clean_membership(
+  x = ntveg_memb,
+  source = ntveg_LUT,
+  target = IUCN_GET,
+  action = "filter"
+)
+
+# ---- Synthesis -----
+
+ntveg_best_summary <- summarise_membership(
+  ntveg_memb_clean |> mutate(MAPUNIT = as.character(MAPUNIT)),
+  keep_all = FALSE,
+  which_round = the_round
+)
+
+ntveg_best_summary
