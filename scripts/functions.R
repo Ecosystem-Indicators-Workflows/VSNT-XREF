@@ -19,7 +19,7 @@ get_data <- function(
 
   user_args <- rlang::dots_list(..., .homonyms = "error")
 
-  final_args <- rlang::modifyList(defaults, user_args, keep.null = TRUE)
+  final_args <- utils::modifyList(defaults, user_args, keep.null = TRUE)
 
   if (file.exists(output_file) && !overwrite) {
     cli::cli_abort(sprintf(

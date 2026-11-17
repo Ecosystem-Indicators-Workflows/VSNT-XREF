@@ -9,6 +9,7 @@ library(terra)
 
 # ---- Create directories if they don't exist -------------------------------------------------
 
+### Paths
 xrefdata <- here::here("data/xrefdata")
 gisdata <- here::here("data/gisdata")
 out_dir <- here::here("data/gisout")
@@ -18,6 +19,9 @@ for (check_dir in c(xrefdata, gisdata, out_dir)) {
     dir.create(check_dir)
   }
 }
+
+### Custom functions
+source(here::here("scripts", "functions.R"))
 
 # function to create a raster layer for a given target_id (EFG) and save it to the output directory
 
