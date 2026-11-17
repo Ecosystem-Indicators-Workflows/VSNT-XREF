@@ -119,7 +119,7 @@ clean_membership <- function(x, source, target, action = "filter") {
   f4 <- !(tid %in% eid)
 
   f5 <- duplicated(x)
-  f6 <- duplicated(select(
+  f6 <- duplicated(dplyr::select(
     x,
     all_of(c(source_id, target_id, interp_name, round_nr))
   ))
