@@ -174,8 +174,11 @@ clean_membership <- function(x, source, target, action = "filter") {
       )
   }
 
+  res <- res |>
+    mutate(flag = replace_values(flag, "" ~ NA_character_))
+
   if (action == "filter") {
-    res <- dplyr::filter(x, !f1 & !f2 & !f3 & !f4 & !f5 & !f6)
+    res <- res |> filter(is.na(flag)) |> dplyr::select(-flag)
     if (any(f1 | f2 | f3 | f4 | f5 | f6)) {
       message(sprintf(
         "Removed %s records with one or more flags",
