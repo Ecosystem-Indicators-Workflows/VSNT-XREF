@@ -73,7 +73,16 @@ ntveg_LUT <- NT_ntveg |>
 
 ## Lookup table target classification
 
-IUCN_GET <- lookup_tbl(IUCN_GET_LUT, "efg_id", "efg_name")
+IUCN_GET <- tibble(
+  efg_id = "T5.6",
+  efg_name = "Semi-arid woodlands",
+  biome_id = "T5",
+  biome_name = "Deserts and semi-deserts biome",
+  realm_id = "T",
+  realm_name = "Terrestrial"
+) |>
+  bind_rows(IUCN_GET_LUT) |>
+  lookup_tbl("efg_id", "efg_name")
 
 # ---- Load the crosswalk data --------------------------------------------
 
