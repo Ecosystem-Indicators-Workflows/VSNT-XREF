@@ -9,6 +9,7 @@ library(raster)
 library(terra)
 library(fs)
 library(glue)
+library(geco)
 # library(pointblank)
 
 # ---- Create directories if not present -------------------------------------------------
@@ -242,3 +243,101 @@ ntveg_best_summary <- summarise_membership(
 )
 
 ntveg_best_summary
+
+# ----- Step 4 - read additional data for outputs -----
+
+## 4a. Read GIS data
+
+rez <- 100
+ntveg_xy <- sf::st_transform(NT_ntveg, "EPSG:3112") |>
+  dplyr::filter(!is.na(MAPUNIT))
+
+### Check for non-matching MAPUNITs between the spatial data match and those in the membership table
+ntveg_best_summary |>
+  anti_join(ntveg_xy)
+
+ntveg_best_summary |>
+  anti_join(ntveg_xy)
+
+ntveg_raster <- raster(ntveg_xy, res = rez)
+
+ntveg_slc <- filter(ntveg_memb, round == 2)
+
+purrr::walk(
+  unique(ntveg_slc$EFG),
+  ~ make_target_raster_layer(
+    target_id = .x,
+    survey_raster = ntveg_raster,
+    survey_xy = ntveg_xy,
+    survey_slc = ntveg_slc,
+    rez = rez,
+    dir = out_dir,
+    print = TRUE,
+    plot = FALSE,
+    write = TRUE,
+    overwrite = TRUE
+  )
+)
+
+nt_all <- rast(dir(out_dir, pattern = "res100", full.names = TRUE))
+
+## 4b. Standard pixel values for Global Ecosystem Atlas + new T5.6
+
+t5_6_info <- tibble(
+  EFG = "T5.6",
+  efg_name = "Semi-arid woodlands",
+  efg_pixel_value = 35,
+  efg_hex_code = "#EEB4B4",
+  efg_rgb_code = "238,180,180"
+) #rosybronw2
+
+efg_info <- geco::geco_efg_data() |>
+  dplyr::select(
+    efg_code,
+    efg_name,
+    efg_pixel_value,
+    efg_hex_code,
+    efg_rgb_code
+  ) |>
+  dplyr::rename("EFG" = "efg_code") |>
+  dplyr::bind_rows(t5_6_info) |>
+  dplyr::arrange(efg_pixel_value)
+
+efg_pixel_values <- efg_info |>
+  dplyr::select(EFG, efg_pixel_value)
+
+## Create a raster stack of all the EFG rasters
+
+# ----- Step 5 - export outputs -----
+
+xref_best_file <- "ntveg-xref-best-candidate.csv"
+efg_lookup_file <- "IUCN-GET-pixel-lookup.csv"
+xref_clr_file <- "ntveg-xref-target.clr"
+xref_aux_file <- "ntveg-xref-target.tiff.aux.xml"
+xref_qml_file <- "ntveg-xref-target.qml"
+xref_tiff_file <- "ntveg-xref-target.tiff"
+memb_tiff_file <- "ntveg-xref-membership.tiff"
+supp_tiff_file <- "ntveg-xref-supporting.tiff"
+
+## 5a. Export tabular synthesis tables
+xref_best_tbl <- ntveg_LUT |>
+  mutate(MAPUNIT = as.character(MAPUNIT)) |>
+  left_join(ntveg_best_summary, by = c("MAPUNIT")) |>
+  left_join(efg_info, by = "EFG") |>
+  dplyr::select(
+    MAPUNIT,
+    ENV_DESC,
+    eligible,
+    EFG,
+    efg_name,
+    efg_pixel_value,
+    efg_hex_code,
+    efg_rgb_code,
+    round,
+    prop_memb,
+    total_memb,
+    supporting,
+    total_interp
+  )
+
+write_csv(xref_best_tbl, here::here(out_dir, xref_best_file))
