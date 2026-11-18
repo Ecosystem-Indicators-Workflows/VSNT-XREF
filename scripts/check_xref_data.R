@@ -88,7 +88,8 @@ read_xref_data <- function(file_path) {
   readr::read_csv(file_path, show_col_types = FALSE, skip = 12)
 }
 
-# shift each interpreter's version up by the difference between the global max version and the max version for that interpreter, so that the latest version for each interpreter is aligned to the same round number
+## shift each interpreter's version up by the difference between the global max version and the max version for that interpreter, so that the latest version for each interpreter is aligned to the same round number
+## pointblank validates that the version number for each interpreter is less than or equal to the global max version number without breaking the pipe
 ntveg_memb <-
   tibble(file_path = fs::dir_ls(xrefdata)) |>
   mutate(
@@ -99,9 +100,32 @@ ntveg_memb <-
   ) |>
   mutate(
     round_nr = version_nr + (global_max_version_nr - max(version_nr)),
-    .by = expert,
+    interp_min_round_nr = min(round_nr),
     .after = version_nr,
-    .keep = "unused"
+    .by = expert
+    # .keep = "unused"
+  ) |>
+  pointblank::col_vals_lte(
+    columns = round_nr,
+    value = vars(global_max_version_nr),
+    segment = vars(expert),
+  ) |>
+  pointblank::col_vals_gte(
+    columns = version_nr,
+    value = vars(round_nr),
+    segment = vars(expert),
+    preconditions = \(x) {
+      filter(x, version_nr == last(version_nr), .by = expert)
+    },
+    actions = pointblank::action_levels(
+      warn_at = 1,
+      stop_at = NULL,
+      fns = list(
+        warn = ~ cli::cli_warn(
+          "Version number for is less than the round number for the latest version for that interpreter. This may indicate that the crosswalk data is not up to date."
+        )
+      )
+    )
   ) |>
   purrr::pmap_dfr(
     ~ read_xref_data(file_path = ..1) |>
