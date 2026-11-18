@@ -7,6 +7,8 @@ library(sf)
 library(fasterize)
 library(raster)
 library(terra)
+library(fs)
+library(glue)
 # library(pointblank)
 
 # ---- Create directories if not present -------------------------------------------------
@@ -76,36 +78,39 @@ IUCN_GET <- lookup_tbl(IUCN_GET_LUT, "efg_id", "efg_name")
 # ---- Load the crosswalk data --------------------------------------------
 
 # read data from the xrefdata directory
-read_xref_data <- function(file_name) {
-  file_path <- here::here(xrefdata, file_name)
+read_xref_data <- function(file_path) {
   if (!file.exists(file_path)) {
     cli::cli_abort(c(
       "File does not exist in xrefdata directory",
-      file_name
+      file_path
     ))
   }
   readr::read_csv(file_path, show_col_types = FALSE, skip = 12)
 }
 
+# shift each interpreter's version up by the difference between the global max version and the max version for that interpreter, so that the latest version for each interpreter is aligned to the same round number
 ntveg_memb <-
-  list(
-    expert = c("MGT", "MGT", "MGT", "DAK"),
-    round_nr = c(1, 2, 3, 3),
-    file_name = c(
-      "MGT_V1_ntveg_1M_290925.csv",
-      "MGT_V2_ntveg_1M_151026.csv",
-      "MGT_V3_ntveg_1M_091126.csv",
-      "DAK_V1_ntveg_1M_271026.csv"
-    )
+  tibble(file_path = fs::dir_ls(xrefdata)) |>
+  mutate(
+    expert = str_extract(fs::path_file(file_path), "^[^_]+"),
+    version_nr = str_extract(fs::path_file(file_path), "(?<=_V)[0-9]+") |>
+      as.numeric(),
+    global_max_version_nr = max(version_nr)
+  ) |>
+  mutate(
+    round_nr = version_nr + (global_max_version_nr - max(version_nr)),
+    .by = expert,
+    .after = version_nr,
+    .keep = "unused"
   ) |>
   purrr::pmap_dfr(
-    ~ read_xref_data(file_name = ..3) |>
+    ~ read_xref_data(file_path = ..1) |>
       pivot_wide_membership_table(
         original_names = "MAPUNIT",
         target_names = sprintf("EFG_%s", 1:3),
         membership_values = sprintf("memb_%s", 1:3),
-        expert_name = ..1,
-        round_nr = ..2
+        expert_name = ..2,
+        round_nr = ..3
       ) |>
       membership_tbl(
         source_id = "MAPUNIT",
