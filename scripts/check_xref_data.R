@@ -451,6 +451,28 @@ ctab <- efg_info |>
   filter(EFG %in% ntveg_xy_best$EFG) |>
   transmute(value = efg_pixel_value, color = efg_hex_code)
 coltab(target_raster) <- ctab
+
+rast_metadata <- c(
+  PROJECT = "Ecosystem Indicators Workflows",
+  TITLE = "Best candidate ecosystem functional group",
+  DESCRIPTION = "Synthesis of crossreference from ntveg to IUCN GET"
+)
+
+metags(target_raster) <- rast_metadata
+
+raster_attributes <- efg_lookup_tbl |>
+  transmute(
+    id = coalesce(efg_pixel_value, 255L),
+    label = paste(EFG, efg_name, sep = " ")
+  )
+
+levels(target_raster) <- raster_attributes
+
+writeRaster(
+  target_raster,
+  here::here(out_dir, xref_tiff_file),
+  overwrite = TRUE
+)
 ## Supporting interpreters
 
 supp_raster <- fasterize(
