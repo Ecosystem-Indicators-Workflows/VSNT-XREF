@@ -446,3 +446,18 @@ target_raster <- fasterize(
   fun = "first"
 ) |>
   rast()
+## Supporting interpreters
+
+supp_raster <- fasterize(
+  ntveg_xy_best,
+  ntveg_raster,
+  field = "supporting",
+  fun = "max"
+) |>
+  rast()
+
+rast_metadata["TITLE"] <- "Nr. of interpreters supporting assignment"
+
+metags(supp_raster) <- rast_metadata
+
+writeRaster(supp_raster, here::here(out_dir, supp_tiff_file), overwrite = TRUE)
