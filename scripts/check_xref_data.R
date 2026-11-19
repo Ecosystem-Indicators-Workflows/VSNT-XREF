@@ -11,7 +11,7 @@ library(fs)
 library(glue)
 library(geco)
 library(stringr)
-# library(pointblank)
+library(pointblank)
 
 # ---- Create directories if not present -------------------------------------------------
 
@@ -251,48 +251,9 @@ ntveg_best_summary
 ## Convert vector to raster using 'fasterize'
 
 ## template raster file
-rez <- 100
 ntveg_xy <- sf::st_transform(NT_ntveg, "EPSG:3112") |>
-  dplyr::filter(!is.na(MAPUNIT))
-
-ntveg_raster <- raster(ntveg_xy, res = rez)
-
-## Check for non-matching MAPUNITs between the spatial data match and those in the membership table
-ntveg_best_summary |>
-  anti_join(ntveg_xy)
-
-ntveg_best_summary |>
-  anti_join(ntveg_xy)
-
-ntveg_xy_best <- ntveg_xy |>
-  left_join(
-    ntveg_best_summary,
-    by = "MAPUNIT",
-    relationship = "many-to-one"
-  ) |>
-  left_join(efg_pixel_values, by = "EFG")
-
-ntveg_xy <- st_transform(NT_ntveg, "EPSG:3112") |>
-  filter(!is.na(MAPUNIT)) |>
-  mutate(MAPUNIT = as.character(MAPUNIT))
-
-purrr::walk(
-  unique(ntveg_slc$EFG),
-  ~ make_target_raster_layer(
-    target_id = .x,
-    survey_raster = ntveg_raster, #raster object used as template for raster output
-    survey_xy = ntveg_xy,
-    survey_slc = ntveg_slc,
-    rez = rez,
-    dir = out_dir,
-    print = TRUE,
-    plot = FALSE,
-    write = TRUE,
-    overwrite = TRUE
-  )
-)
-
-nt_all <- rast(dir(out_dir, pattern = "res100", full.names = TRUE))
+  dplyr::filter(!is.na(MAPUNIT)) |>
+  dplyr::mutate(MAPUNIT = as.character(MAPUNIT))
 
 ## 4b. Standard pixel values for Global Ecosystem Atlas + new T5.6
 
@@ -454,3 +415,34 @@ qml_lines <- c(
 writeLines(qml_lines, here::here(out_dir, xref_qml_file))
 
 ## 5f. Export raster files
+
+## Check for non-matching MAPUNITs between the spatial data match and those in the membership table
+ntveg_best_summary |>
+  anti_join(ntveg_xy)
+
+ntveg_best_summary |>
+  anti_join(ntveg_xy)
+
+#  Combined attribute table (vector data)
+ntveg_xy_best <- ntveg_xy |>
+  left_join(
+    ntveg_best_summary,
+    by = "MAPUNIT",
+    relationship = "many-to-one"
+  ) |>
+  left_join(efg_pixel_values, by = "EFG")
+
+# template raster file
+### template raster file
+rez <- 100
+ntveg_raster <- raster(ntveg_xy, res = rez)
+
+#### Best candidate
+
+target_raster <- fasterize(
+  ntveg_xy_best,
+  ntveg_raster,
+  field = "efg_pixel_value",
+  fun = "first"
+) |>
+  rast()
