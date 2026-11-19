@@ -209,8 +209,8 @@ ntveg_memb_missing_efgs |>
 ntveg_memb_missing_efgs |>
   nrow()
 
-distinct(ntveg_memb_missing_efgs, EFG) |> unlist() |> gluedown::md_bullet()
-distinct(ntveg_memb_missing_efgs, MAPUNIT) |> unlist() |> gluedown::md_bullet()
+distinct(ntveg_memb_missing_efgs, EFG) |> unlist() |> gluedown::md_bullet() #T5.6 addition now means is empty
+distinct(ntveg_memb_missing_efgs, MAPUNIT) |> unlist() |> gluedown::md_bullet() #T5.6 addition now means is empty
 
 ## Clean membership table by filtering out records with invalid membership values, source IDs, or target IDs
 
