@@ -473,6 +473,28 @@ writeRaster(
   here::here(out_dir, xref_tiff_file),
   overwrite = TRUE
 )
+
+out_file <- here::here(out_dir, "ntveg-xref-target.tiff.vat.dbf")
+foreign::write.dbf(data.frame(raster_attributes), file = out_file)
+
+## Best candidate membership
+
+memb_raster <- fasterize(
+  ntveg_xy_best,
+  ntveg_raster,
+  field = "prop_memb",
+  fun = "max"
+) |>
+  rast()
+
+rast_metadata[
+  "TITLE"
+] <- "Membership for the best candidate ecosystem functional group"
+
+metags(memb_raster) <- rast_metadata
+
+writeRaster(memb_raster, here::here(out_dir, memb_tiff_file), overwrite = TRUE)
+
 ## Supporting interpreters
 
 supp_raster <- fasterize(
