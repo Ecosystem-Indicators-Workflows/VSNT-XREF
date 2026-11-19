@@ -272,7 +272,9 @@ ntveg_xy_best <- ntveg_xy |>
   ) |>
   left_join(efg_pixel_values, by = "EFG")
 
-ntveg_slc <- filter(ntveg_memb, round == 2)
+ntveg_xy <- st_transform(NT_ntveg, "EPSG:3112") |>
+  filter(!is.na(MAPUNIT)) |>
+  mutate(MAPUNIT = as.character(MAPUNIT))
 
 purrr::walk(
   unique(ntveg_slc$EFG),
