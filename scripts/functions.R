@@ -192,7 +192,8 @@ clean_membership <- function(x, source, target, action = "filter") {
 }
 
 # function to create a raster layer for a given target_id (EFG) and save it to the output directory
-
+# calculates the membership proportions for one EFG only, before rasterising that proportion to an individual TIFF.
+# OBSOLETE for the new workflow, but still useful for checking the results of the membership calculations.
 make_target_raster_layer <- function(
   target_id,
   survey_raster,
