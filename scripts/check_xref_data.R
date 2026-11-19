@@ -264,6 +264,14 @@ ntveg_best_summary |>
 ntveg_best_summary |>
   anti_join(ntveg_xy)
 
+ntveg_xy_best <- ntveg_xy |>
+  left_join(
+    ntveg_best_summary,
+    by = "MAPUNIT",
+    relationship = "many-to-one"
+  ) |>
+  left_join(efg_pixel_values, by = "EFG")
+
 ntveg_slc <- filter(ntveg_memb, round == 2)
 
 purrr::walk(
