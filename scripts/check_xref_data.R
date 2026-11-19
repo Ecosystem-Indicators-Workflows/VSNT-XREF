@@ -446,6 +446,11 @@ target_raster <- fasterize(
   fun = "first"
 ) |>
   rast()
+
+ctab <- efg_info |>
+  filter(EFG %in% ntveg_xy_best$EFG) |>
+  transmute(value = efg_pixel_value, color = efg_hex_code)
+coltab(target_raster) <- ctab
 ## Supporting interpreters
 
 supp_raster <- fasterize(
