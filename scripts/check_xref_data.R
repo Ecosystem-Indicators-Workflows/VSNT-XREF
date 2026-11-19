@@ -10,6 +10,7 @@ library(terra)
 library(fs)
 library(glue)
 library(geco)
+library(stringr)
 # library(pointblank)
 
 # ---- Create directories if not present -------------------------------------------------
