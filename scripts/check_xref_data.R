@@ -455,7 +455,7 @@ coltab(target_raster) <- ctab
 rast_metadata <- c(
   PROJECT = "Ecosystem Indicators Workflows",
   TITLE = "Best candidate ecosystem functional group",
-  DESCRIPTION = "Synthesis of crossreference from ntveg to IUCN GET"
+  DESCRIPTION = "Synthesis of crossreference from VSNT to IUCN GET"
 )
 
 metags(target_raster) <- rast_metadata
