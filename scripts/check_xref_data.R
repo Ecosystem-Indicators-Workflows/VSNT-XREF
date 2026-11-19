@@ -412,16 +412,26 @@ qml_lines <- c(
   "  <blendMode>0</blendMode>",
   "</qgis>"
 )
+
 writeLines(qml_lines, here::here(out_dir, xref_qml_file))
 
 ## 5f. Export raster files
 
 ## Check for non-matching MAPUNITs between the spatial data match and those in the membership table
-ntveg_best_summary |>
-  anti_join(ntveg_xy)
+stopifnot(
+  ntveg_best_summary |>
+    anti_join(ntveg_xy) |>
+    nrow() ==
+    0
+)
 
-ntveg_best_summary |>
-  anti_join(ntveg_xy)
+stopifnot(
+  ntveg_xy |>
+    anti_join(ntveg_best_summary) |>
+    nrow() ==
+    0
+)
+
 
 #  Combined attribute table (vector data)
 ntveg_xy_best <- ntveg_xy |>
