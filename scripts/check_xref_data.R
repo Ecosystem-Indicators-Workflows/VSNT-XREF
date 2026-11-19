@@ -248,19 +248,21 @@ ntveg_best_summary
 # ----- Step 4 - read additional data for outputs -----
 
 ## 4a. Read GIS data
+## Convert vector to raster using 'fasterize'
 
+## template raster file
 rez <- 100
 ntveg_xy <- sf::st_transform(NT_ntveg, "EPSG:3112") |>
   dplyr::filter(!is.na(MAPUNIT))
 
-### Check for non-matching MAPUNITs between the spatial data match and those in the membership table
-ntveg_best_summary |>
-  anti_join(ntveg_xy)
-
-ntveg_best_summary |>
-  anti_join(ntveg_xy)
-
 ntveg_raster <- raster(ntveg_xy, res = rez)
+
+## Check for non-matching MAPUNITs between the spatial data match and those in the membership table
+ntveg_best_summary |>
+  anti_join(ntveg_xy)
+
+ntveg_best_summary |>
+  anti_join(ntveg_xy)
 
 ntveg_slc <- filter(ntveg_memb, round == 2)
 
@@ -268,7 +270,7 @@ purrr::walk(
   unique(ntveg_slc$EFG),
   ~ make_target_raster_layer(
     target_id = .x,
-    survey_raster = ntveg_raster,
+    survey_raster = ntveg_raster, #raster object used as template for raster output
     survey_xy = ntveg_xy,
     survey_slc = ntveg_slc,
     rez = rez,
@@ -342,3 +344,103 @@ xref_best_tbl <- ntveg_LUT |>
   )
 
 write_csv(xref_best_tbl, here::here(out_dir, xref_best_file))
+
+## 5b. Export tabular lookup  tables
+
+efg_lookup_tbl <- xref_best_tbl |>
+  dplyr::filter(!is.na(EFG)) |>
+  summarise(
+    n_ntveg_units = n_distinct(`MAPUNIT`),
+    .by = c(efg_pixel_value, EFG, efg_name, efg_hex_code, efg_rgb_code)
+  ) |>
+  left_join(
+    as_tibble(IUCN_GET) |>
+      dplyr::select(efg_id, realm_id, realm_name, biome_id, biome_name),
+    by = c("EFG" = "efg_id")
+  ) |>
+  dplyr::select(
+    efg_pixel_value,
+    EFG,
+    efg_name,
+    realm_id,
+    realm_name,
+    biome_id,
+    biome_name,
+    efg_hex_code,
+    efg_rgb_code,
+    n_ntveg_units
+  ) |>
+  arrange(efg_pixel_value)
+
+write_csv(
+  efg_lookup_tbl,
+  here::here(out_dir, efg_lookup_file)
+)
+
+## 5c. Export colour file
+
+clr_lines <- efg_lookup_tbl |>
+  tidyr::separate(efg_rgb_code, into = c("R", "G", "B"), sep = ",") |>
+  transmute(
+    line = sprintf(
+      "%d %s %s %s 255 %s %s",
+      efg_pixel_value,
+      R,
+      G,
+      B,
+      EFG,
+      efg_name
+    )
+  ) |>
+  pull(line)
+
+writeLines(
+  clr_lines,
+  here::here(out_dir, xref_clr_file)
+)
+
+## 5d. Export style file
+
+qml_entries <- efg_lookup_tbl |>
+  transmute(
+    entry = sprintf(
+      '        <paletteEntry value="%d" color="%s" alpha="255" label="%s %s"/>',
+      efg_pixel_value,
+      efg_hex_code,
+      EFG,
+      efg_name
+    )
+  ) |>
+  pull(entry)
+
+qml_lines <- c(
+  "<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>",
+  '<qgis version="3.34.0" minScale="1e+08" maxScale="0" hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories">',
+  "  <pipe>",
+  "    <provider>",
+  '      <resampling enabled="false" maxOversampling="2" zoomedInResamplingMethod="nearestNeighbour" zoomedOutResamplingMethod="nearestNeighbour"/>',
+  "    </provider>",
+  '    <rasterrenderer band="1" type="paletted" opacity="1" alphaBand="-1" nodataColor="">',
+  "      <rasterTransparency/>",
+  "      <minMaxOrigin>",
+  "        <limits>None</limits>",
+  "        <extent>WholeRaster</extent>",
+  "        <statAccuracy>Estimated</statAccuracy>",
+  "        <cumulativeCutLower>0.02</cumulativeCutLower>",
+  "        <cumulativeCutUpper>0.98</cumulativeCutUpper>",
+  "        <stdDevFactor>2</stdDevFactor>",
+  "      </minMaxOrigin>",
+  "      <colorPalette>",
+  qml_entries,
+  "      </colorPalette>",
+  "    </rasterrenderer>",
+  '    <brightnesscontrast brightness="0" contrast="0" gamma="1"/>',
+  '    <huesaturation colorizeGreen="128" colorizeOn="0" colorizeRed="255" colorizeBlue="128" grayscaleMode="0" saturation="0" colorizeStrength="100"/>',
+  '    <rasterresampler maxOversampling="2"/>',
+  "  </pipe>",
+  "  <blendMode>0</blendMode>",
+  "</qgis>"
+)
+writeLines(qml_lines, here::here(out_dir, xref_qml_file))
+
+## 5f. Export raster files
