@@ -294,7 +294,7 @@ ntveg_best_summary
 
 # ----- Step 4 - read additional data for outputs -----
 
-## 4a. Read GIS data
+## ----- 4a. Read GIS data -----
 ## Convert vector to raster using 'fasterize'
 
 ## template raster file
@@ -302,7 +302,7 @@ ntveg_xy <- sf::st_transform(NT_ntveg, epsg_code) |>
   dplyr::filter(!is.na(MAPUNIT)) |>
   dplyr::mutate(MAPUNIT = as.character(MAPUNIT))
 
-## 4b. Standard pixel values for Global Ecosystem Atlas + new T5.6
+## ----- 4b. Standard pixel values for Global Ecosystem Atlas + new T5.6 -----
 
 t5_6_info <- tibble(
   EFG = "T5.6",
