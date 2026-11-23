@@ -427,3 +427,20 @@ file_checks <- function(
   }
   return(results)
 }
+
+## Functions for metadata processing
+
+#' List metadata schema fields for a tbl
+#'
+#' @param tbl A tibble or data.frame
+#' @param descriptions A named character vector of variables descriptions
+#' @return A list whose length is equal to the length of `descriptions` and the number of columns in `tbl`, which must be equal.
+#' @details
+#' For each variable name in `tbl` a tupple of name, type and description is returned.
+list_schema_fields_tbl <- function(tbl, descriptions) {
+  stopifnot(setequal(names(tbl), names(descriptions)))
+  purrr::imap(tbl, \(x, nm) {
+    list(name = nm, type = class(x)[1], description = unname(descriptions[nm]))
+  }) |>
+    unname()
+}
