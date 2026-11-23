@@ -93,7 +93,7 @@ ntveg_LUT <- NT_ntveg |>
     L5_ASSOC_6
   ) |>
   unique() |>
-  lookup_tbl("MAPUNIT", "ENV_DESC") |>
+  lookup_tbl(id = "MAPUNIT", name = "ENV_DESC") |>
   mutate(MAPUNIT = as.numeric(MAPUNIT))
 
 ## Lookup table `target` classification
@@ -107,7 +107,7 @@ IUCN_GET <- tibble(
   realm_name = "Terrestrial"
 ) |>
   bind_rows(ecoSynthesis::IUCN_GET_LUT) |>
-  lookup_tbl("efg_id", "efg_name")
+  lookup_tbl(id = "efg_id", name = "efg_name")
 
 ## ------ Membership table creation -----
 
