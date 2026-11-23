@@ -1,5 +1,13 @@
-data/gisout/
-data/gisdata/
-.vscode/
-.DS_Store
+.Rproj.user
+.Rhistory
+.RData
 .httr-oauth
+.DS_Store
+.quarto
+.venv
+.env_local
+data/source-data
+.vscode/*
+results/*/*
+!results/*/README.qmd
+*/air.toml
