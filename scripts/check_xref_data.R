@@ -1,3 +1,7 @@
+# ----- Setup ----
+
+# Load libraries
+
 library(here)
 library(readr)
 library(dplyr)
@@ -13,20 +17,19 @@ library(geco)
 library(stringr)
 library(pointblank)
 
-# ---- Create directories if not present -------------------------------------------------
+# Create directories if not present
 
-### Paths
-xrefdata <- here::here("data/xrefdata")
-gisdata <- here::here("data/gisdata")
-out_dir <- here::here("data/gisout")
+xref_dir <- here::here("data/xrefdata")
+gisdata_dir <- here::here("data/source-data")
+out_dir <- here::here("results", "output1-best-candidate-raster")
 
-for (check_dir in c(xrefdata, gisdata, out_dir)) {
+for (check_dir in c(xref_dir, gisdata_dir, out_dir)) {
   if (!dir.exists(check_dir)) {
-    dir.create(check_dir)
+    dir.create(check_dir, recursive = TRUE)
   }
 }
 
-### Predefined parameters
+# Predefined parameters
 
 the_round <- 3
 
@@ -43,14 +46,14 @@ list(
     ~ get_data(
       data_url = .x,
       output_file = {
-        here::here(gisdata, urltools::param_get(.x, "realfilename"))
+        here::here(gisdata_dir, urltools::param_get(.x, "realfilename"))
       },
-      gisdata_path = gisdata,
+      gisdata_path = gisdata_dir,
       overwrite = FALSE
     )
   )
 
-NT_ntveg <- read_sf(here::here(gisdata, "ntveg_1M.shp"))
+NT_ntveg <- read_sf(here::here(gisdata_dir, "ntveg_1M.shp"))
 
 # ---- Create a lookup tables ------------------------------------------------
 
@@ -88,11 +91,11 @@ IUCN_GET <- tibble(
 
 # ---- Load the crosswalk data --------------------------------------------
 
-# read data from the xrefdata directory
+# read data from the xref_dir directory
 read_xref_data <- function(file_path) {
   if (!file.exists(file_path)) {
     cli::cli_abort(c(
-      "File does not exist in xrefdata directory",
+      "File does not exist in xref_dir directory",
       file_path
     ))
   }
@@ -102,7 +105,7 @@ read_xref_data <- function(file_path) {
 ## shift each interpreter's version up by the difference between the global max version and the max version for that interpreter, so that the latest version for each interpreter is aligned to the same round number
 ## pointblank validates that the version number for each interpreter is less than or equal to the global max version number without breaking the pipe
 ntveg_memb <-
-  tibble(file_path = fs::dir_ls(xrefdata)) |>
+  tibble(file_path = fs::dir_ls(xref_dir)) |>
   mutate(
     expert = str_extract(fs::path_file(file_path), "^[^_]+"),
     version_nr = str_extract(fs::path_file(file_path), "(?<=_V)[0-9]+") |>
