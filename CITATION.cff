@@ -15,6 +15,11 @@ authors:
     email: j.ferrer@unsw.edu.au
     affiliation: UNSW Sydney
     orcid: 'https://orcid.org/0000-0002-9554-3395'
+  - given-names: Elliot
+    family-names: Gould
+    email: elliot.gould@unsw.edu.au
+    affiliation: Centre for Ecosystem Science, UNSW Sydney
+    orcid: 'https://orcid.org/0000-0002-6585-538X'
   - given-names: Mark G.
     family-names: Tozer
     affiliation: UNSW Sydney
@@ -22,6 +27,6 @@ authors:
 repository-code: >-
   https://github.com/Ecosystem-Indicators-Workflows/VSNT-XREF
 license: CC-BY-4.0
-commit: 58e4d62de3db8dce7f331702210fb22fa147a0f4
-version: 0.0.1
-date-released: '2026-10-28'
+commit: 44d0d960e930314247d6c70a6cada6964dfeb5c6
+version: 0.1.0
+date-released: '2026-11-23'

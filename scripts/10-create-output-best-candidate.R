@@ -492,7 +492,7 @@ ntveg_xy_best <- ntveg_xy |>
   left_join(efg_pixel_values, by = "EFG")
 
 ### template raster file
-rez <- 100
+rez <- 90
 ntveg_raster <- raster(ntveg_xy, res = rez)
 
 ### ----- Best candidate

@@ -1,0 +1,440 @@
+---
+format:
+  gfm:
+    output-file: README.md
+    wrap: none
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup-and-stats
+library(terra)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(knitr)
+library(jsonlite)
+
+here::i_am("results/output1-best-candidate-raster/README.qmd")
+out_dir <- here::here("results", "output1-best-candidate-raster")
+
+# Load metadata, CSV tables, and GeoTIFF rasters
+zenodo_meta <- fromJSON(file.path(out_dir, ".zenodo.json"))
+datapkg <- fromJSON(
+  file.path(out_dir, "datapackage.json"),
+  simplifyVector = FALSE
+)
+xref_tbl <- read_csv(
+  file.path(out_dir, "ntveg-xref-best-candidate.csv"),
+  show_col_types = FALSE
+)
+efg_lut <- read_csv(
+  file.path(out_dir, "IUCN-GET-pixel-lookup.csv"),
+  show_col_types = FALSE
+)
+# MAPUNITs on the Vegetation Survey map
+pct_on_map <- xref_tbl |>
+  filter(eligible) |>
+  pull(MAPUNIT) |>
+  n_distinct()
+
+r_target <- rast(file.path(out_dir, "ntveg-xref-target.tiff"))
+r_memb <- rast(file.path(out_dir, "ntveg-xref-membership.tiff"))
+r_supp <- rast(file.path(out_dir, "ntveg-xref-supporting.tiff"))
+
+# Spatial grid statistics
+crs_info <- crs(r_target, describe = TRUE)
+crs_label <- sprintf(
+  "%s (%s:%s)",
+  crs_info$name[1],
+  crs_info$authority[1],
+  crs_info$code[1]
+)
+res_xy <- res(r_target)
+pixel_km2 <- prod(res_xy) / 1e6
+pixel_ha <- prod(res_xy) / 1e4
+n_rows <- nrow(r_target)
+n_cols <- ncol(r_target)
+n_bands <- nlyr(r_target)
+total_cells <- ncell(r_target)
+ext_bbox <- as.vector(ext(r_target)) # xmin, xmax, ymin, ymax
+
+# Frequency tables from rasters (the target raster is categorical: values are labels)
+freq_target <- as_tibble(freq(r_target)) |>
+  transmute(label = as.character(value), count)
+freq_supp <- as_tibble(freq(r_supp)) |> select(value, count)
+memb_minmax <- as.numeric(minmax(r_memb))
+
+mapped_pixels <- sum(freq_target$count)
+nodata_pixels <- total_cells - mapped_pixels
+mapped_area_km2 <- mapped_pixels * pixel_km2
+
+# Source & Target unit statistics
+n_total_units <- nrow(xref_tbl)
+n_approved <- sum(xref_tbl$eligible, na.rm = TRUE)
+
+n_on_map <- (pct_on_map)
+
+xref_assigned <- xref_tbl |> filter(!is.na(EFG))
+xref_map <- xref_assigned
+n_assigned <- nrow(xref_assigned)
+n_assigned_map <- nrow(xref_map)
+n_map_no_efg <- n_on_map - n_assigned_map
+
+n_efgs <- nrow(efg_lut)
+n_realms <- n_distinct(efg_lut$realm_id)
+n_biomes <- n_distinct(efg_lut$biome_id)
+round_nr <- unique(na.omit(xref_assigned$round))[1]
+n_interp <- max(xref_assigned$total_interp, na.rm = TRUE)
+interp_tbl <- xref_assigned |> count(total_interp, name = "n_pct")
+
+prop_min <- min(xref_assigned$prop_memb, na.rm = TRUE)
+prop_max <- max(xref_assigned$prop_memb, na.rm = TRUE)
+prop_median <- median(xref_assigned$prop_memb, na.rm = TRUE)
+prop_mean <- mean(xref_assigned$prop_memb, na.rm = TRUE)
+
+# Supporting interpreter summary (MAPUNITs on the map + pixels + area)
+supp_units <- xref_map |> count(supporting, name = "n_units")
+
+supp_summary <- freq_supp |>
+  rename(supporting = value, pixels = count) |>
+  full_join(supp_units, by = "supporting") |>
+  mutate(
+    n_units = replace_na(n_units, 0L),
+    pixels = replace_na(pixels, 0),
+    area_km2 = pixels * pixel_km2,
+    pct_area = 100 * pixels / mapped_pixels
+  ) |>
+  arrange(desc(supporting))
+
+supp_max_row <- supp_summary |> slice(1)
+
+# Combine EFG lookup table with pixel counts and mapped area
+efg_summary_tbl <- efg_lut |>
+  mutate(label = paste(EFG, efg_name)) |>
+  left_join(freq_target, by = "label") |>
+  mutate(
+    count = replace_na(count, 0),
+    area_km2 = count * pixel_km2
+  ) |>
+  arrange(efg_pixel_value)
+
+# Data dictionary from datapackage.json (single source of truth)
+dict_table <- function(resource) {
+  fields <- resource$schema$fields
+  tibble(
+    Column = sprintf("`%s`", map_chr(fields, "name")),
+    Type = sprintf("`%s`", map_chr(fields, "type")),
+    Description = map_chr(fields, "description")
+  ) |>
+    kable(format = "pipe")
+}
+```
+
+# Cross-referencing the Vegetation survey of the Northern Territory, Australia to the IUCN Global Ecosystem Typology: 90m Best-Candidate Spatial Synthesis
+
+**Version:** `r zenodo_meta$version`<br/>
+**Release Date:** `r format(Sys.Date(), "%Y-%m-%d")`<br/>
+**Dataset License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (with source spatial data attribution to the Vegetation survey of the Northern Territory)<br/>
+**Code License:** MIT<br/>
+**Workflow Repository:** <https://github.com/Ecosystem-Indicators-Workflows/ntveg-XREF>
+
+> *Note: This `README.md` is dynamically generated from [`README.qmd`](README.qmd) by inspecting the output GeoTIFFs and CSV tables. To update all statistics after regenerating the data, run `quarto render results/output1-best-candidate-raster/README.qmd`.*
+
+---
+
+## Author contributions
+
+### Authors
+
+```{r}
+#| results: asis
+#| label: authors
+
+data.frame(zenodo_meta$creators) |>
+  mutate(
+    orcidstr = if_else(
+      !is.na(orcid),
+      sprintf(" (ORCID: [%1$s](http://orcid.org/%1$s)) — ", orcid),
+      " — "
+    ),
+    affstr = if_else(!is.na(affiliation), sprintf("*%s*", affiliation), ""),
+    authorstr = sprintf("- **%s**%s%s\n", name, orcidstr, affstr)
+  ) |>
+  pull(authorstr) |>
+  cat()
+```
+
+### Contributors
+
+```{r}
+#| results: asis
+#| label: contributors
+
+data.frame(zenodo_meta$contributors) |>
+  mutate(
+    # orcidstr = if_else(!is.na(orcid), sprintf(" (ORCID: <%s>) — ", orcid), " — "),
+    affstr = if_else(!is.na(affiliation), sprintf("*%s*", affiliation), ""),
+    authorstr = sprintf("- **%s** %s\n", name, affstr)
+  ) |>
+  pull(authorstr) |>
+  cat()
+```
+
+### Contributions
+
+MGT led the expert elicitation process. MGT, and DAK contributed membership tables for cross-referencing. JRFP led the technical documentation and synthesis workflow. JRFP, EG and ARS developed the scripts for data preparation, validation, analysis, and spatial output generation.
+
+---
+
+## 1. Overview & Methodology
+
+This dataset provides a **`r res_xy[1]` m resolution spatial synthesis** and **tabular cross-reference lookup tables** aligning the map units of the Vegetation survey of the Northern Territory with Level 3 **Ecosystem Functional Groups (EFGs)** of the **IUCN Global Ecosystem Typology (IUCN GET)**.
+
+### Cross-Referencing & Expert Elicitation Workflow
+
+Following the IUCN standards and guidelines for cross-referencing ecosystem classifications and maps (IUCN, 2025), the workflow proceeded through four stages:
+
+1. **Conceptual Alignment & Eligibility Assessment:**
+   - **Source classification:** Vegetation survey of the Northern Territory, comprising **`r n_approved` MAPUNITs** eligible for cross-referencing. 
+   - **Target classification:** IUCN Global Ecosystem Typology (Keith et al., 2022) at **Level 3: Ecosystem Functional Groups (EFGs)**.
+
+2. **Structured Expert Elicitation:**
+   - Domain experts (DAK, MGT) independently assessed the fuzzy membership ($0 < \text{memb} \le 1$, summing to $1.0$ per source unit and interpreter) of the MAPUNITS across candidate IUCN GET EFGs. Each interpreter submitted several versions of their table; following the experts' final response, only the **latest version of each interpreter**  is used and is called **Round `r round_nr`** in the tables. 
+   - This version includes summaries based on `r n_interp` interpreters. Not every interpreter assessed every MAPUNIT: **`r interp_tbl |> filter(total_interp == n_interp) |> pull(n_pct)` MAPUNITs** were assessed by all `r n_interp` interpreters, the others by fewer (see `total_interp`).
+   - Data preparation (see `scripts/` for details): `T5.6` *Semi-arid woodlands* is used by all interpreters and was accepted although it is not in the IUCN GET Level 3 list.
+
+3. **Synthesis ("Best Candidate" / Winner-Takes-All):**
+   - Membership scores of Round `r round_nr` were aggregated by `MAPUNIT` using `ecoSynthesis::summarise_membership(..., keep_all = FALSE, which_round = `r round_nr`)`.
+   - For each source `MAPUNIT`, the candidate EFG receiving the highest **proportion of total membership (`prop_memb`)** across the interpreters who assessed it was selected as the **best candidate**.
+   - **`r n_assigned` MAPUNITs** received a best candidate, and **`r n_efgs` IUCN GET Ecosystem Functional Groups** are present on the map, with `prop_memb` ranging from **`r sprintf("%.2f", prop_min)` to `r sprintf("%.2f", prop_max)`** (median **`r sprintf("%.2f", prop_median)`**, mean **`r sprintf("%.3f", prop_mean)`**). For **`r supp_max_row$n_units` of `r n_assigned_map` mapped MAPUNITs** (`r sprintf("%.1f%%", supp_max_row$pct_area)` of mapped area), all `r supp_max_row$supporting` interpreters assigned non-zero membership to the winning EFG (`supporting = ` `r supp_max_row$supporting`).
+
+4. **Spatial Resampling (`r res_xy[1]` m GeoTIFFs):**
+   - The outputs are based on the Vegetation survey of the Northern Territory spatial data and outputs were rasterised to a **`r res_xy[1]` m × `r res_xy[2]` m** grid in ``r crs_label``.
+   - The MAPUNIT of each cell was then replaced by the values of the best candidate (EFG pixel value, `prop_memb`, `supporting`).
+   - Standard integer pixel codes (`efg_pixel_value`) and official hex color tables (`efg_hex_code`) from the Global Ecosystems Atlas (`geco` R package) were embedded into the target GeoTIFF; `T5.6` is not in that list and uses pixel value 35 and colour `#EEB4B4`.
+
+### Limitations
+
+- **`r n_map_no_efg` MAPUNITs on the map were not cross-referenced** by any interpreter; their pixels are `NoData`. Pixels with MAPUNIT value 0 (*Not classified*) are also `NoData`.
+
+---
+
+## 2. File Inventory
+
+| File Name | Format | Description |
+|---|---|---|
+| `ntveg-xref-target.tiff` | GeoTIFF (`r datatype(r_target)` / integer, embedded color table) | **Best-candidate IUCN GET Ecosystem Functional Group** at `r res_xy[1]` m resolution. Pixel values (``r min(efg_lut$efg_pixel_value)`` to ``r max(efg_lut$efg_pixel_value)``) correspond to `efg_pixel_value` in `IUCN-GET-pixel-lookup.csv`. |
+| `ntveg-xref-membership.tiff` | GeoTIFF (`r datatype(r_memb)` / float32) | **Proportion of total membership (`prop_memb`)** supporting the best-candidate EFG in Round `r round_nr` (continuous values from ``r sprintf("%.2f", memb_minmax[1])`` to ``r sprintf("%.2f", memb_minmax[2])``). Quantifies thematic/cross-referencing certainty. |
+| `ntveg-xref-supporting.tiff` | GeoTIFF (`r datatype(r_supp)` / integer) | **Number of supporting interpreters (`supporting`)** out of `r n_interp` who assigned $>0$ membership to the best-candidate EFG in Round `r round_nr` (integer values: `r paste(sprintf("\x60%d\x60", sort(freq_supp$value)), collapse = ", ")`). |
+| `ntveg-xref-best-candidate.csv` | CSV (UTF-8, `r nrow(xref_tbl)` rows) | **Complete MAPUNIT to IUCN GET synthesis table** with their best-candidate EFG, pixel value, color codes, `prop_memb`, and `supporting` counts. |
+| `IUCN-GET-pixel-lookup.csv` | CSV (UTF-8, `r nrow(efg_lut)` rows) | **Raster pixel value dictionary** mapping the `r nrow(efg_lut)` integer codes (`efg_pixel_value`: ``r min(efg_lut$efg_pixel_value)``–``r max(efg_lut$efg_pixel_value)``) in `ntveg-xref-target.tiff` to EFG codes, EFG names, IUCN GET Realm/Biome hierarchy, RGB/Hex colors, and number of MAPUNITs. |
+| `ntveg-xref-target.qml` | QGIS Style XML | **QGIS layer style file** for `ntveg-xref-target.tiff`. Place in the same folder as the `.tiff` to automatically display official Global Ecosystems Atlas colors and EFG code + name labels in QGIS. |
+| `ntveg-xref-target.clr` | GDAL / ESRI Color Map | **Standard RGBA color map file** (`value R G B A label`) for styling `ntveg-xref-target.tiff` in ArcGIS, GDAL, or other GIS software. |
+| `datapackage.json` | JSON (Frictionless Data) | **Machine-readable Frictionless Data Package specification** describing all tabular schemas, field definitions, and spatial raster metadata. |
+| `.zenodo.json` | JSON | **Zenodo deposit metadata** (creators, affiliations, license, keywords, and related DOIs/URLs). |
+| `README.md` / `README.qmd` | Markdown / Quarto | **Dataset documentation file** and the reproducible Quarto template that generates it. |
+
+---
+
+## 3. Spatial Specifications
+
+All three GeoTIFF files (`ntveg-xref-target.tiff`, `ntveg-xref-membership.tiff`, `ntveg-xref-supporting.tiff`) share an identical spatial grid:
+
+| Property | Value |
+|---|---|
+| **Coordinate Reference System (CRS)** | ``r crs_label`` |
+| **Spatial Resolution** | ``r sprintf("%g m × %g m", res_xy[1], res_xy[2])`` (``r sprintf("%.4f km²", pixel_km2)`` / ``r sprintf("%.2f ha", pixel_ha)`` per pixel) |
+| **Grid Dimensions** | ``r sprintf("%d rows × %d columns × %d band", n_rows, n_cols, n_bands)`` (``r format(total_cells, big.mark = ",")`` total grid cells) |
+| **Mapped Pixels** | ``r format(mapped_pixels, big.mark = ",")`` valid pixels (``r sprintf("%s km²", format(round(mapped_area_km2, 2), big.mark = ",", nsmall = 2))`` total mapped area) |
+| **NoData (`NA`) Pixels** | ``r format(nodata_pixels, big.mark = ",")`` pixels (outside the extent of the original data, *Not classified*, and MAPUNITs without a cross-reference) |
+| **Bounding Box (`xmin, xmax, ymin, ymax`)** | ``r sprintf("%.0f, %.0f, %.0f, %.0f", ext_bbox[1], ext_bbox[2], ext_bbox[3], ext_bbox[4])`` (meters, `r paste0(crs_info$authority[1], ":", crs_info$code[1])`) |
+| **Resampling rule** | Nearest neighbour from the 5 m source raster (GDAL `warp`, `-r near`, overviews not used) |
+| **Embedded GDAL Metadata Tags** | `AREA_OR_POINT = Area`<br>`PROJECT = Ecosystem Indicators Workflows`<br>`DESCRIPTION = Synthesis of crossreference from MAPUNIT (Vegetation Survey map) to IUCN GET`<br>`TITLE = <Layer-specific title>` |
+
+---
+
+## 4. Lookup Table: Target Pixel Values (`ntveg-xref-target.tiff`)
+
+The table below lists all **`r n_efgs` IUCN GET Level 3 Ecosystem Functional Groups** present in `ntveg-xref-target.tiff` (also provided in machine-readable form in `IUCN-GET-pixel-lookup.csv`):
+
+```{r}
+#| label: efg-lookup-table
+#| results: asis
+tbl_rows <- efg_summary_tbl |>
+  transmute(
+    `Pixel Value (\`efg_pixel_value\`)` = sprintf("**%d**", efg_pixel_value),
+    `EFG Code` = sprintf("`%s`", EFG),
+    `Ecosystem Functional Group Name (\`efg_name\`)` = efg_name,
+    `Realm (\`realm_id\`)` = sprintf("`%s` (%s)", realm_id, realm_name),
+    `Biome (\`biome_id\`)` = sprintf("`%s`", biome_id),
+    `Hex Color (\`efg_hex_code\`)` = sprintf("`%s`", efg_hex_code),
+    `MAPUNITs (\`n_ntveg_units\`)` = as.character(n_ntveg_units),
+    `Mapped Pixels (90 m)` = format(count, big.mark = ","),
+    `Mapped Area (km²)` = format(round(area_km2, 2), big.mark = ",", nsmall = 2)
+  )
+
+total_row <- tibble(
+  `Pixel Value (\`efg_pixel_value\`)` = "**Total**",
+  `EFG Code` = "—",
+  `Ecosystem Functional Group Name (\`efg_name\`)` = sprintf(
+    "**%d Ecosystem Functional Groups**",
+    n_efgs
+  ),
+  `Realm (\`realm_id\`)` = sprintf("**%d Realms**", n_realms),
+  `Biome (\`biome_id\`)` = sprintf("**%d Biomes**", n_biomes),
+  `Hex Color (\`efg_hex_code\`)` = "—",
+  `MAPUNITs (\`n_ntveg_units\`)` = sprintf(
+    "**%d**",
+    sum(efg_summary_tbl$n_ntveg_units)
+  ),
+  `Mapped Pixels (90 m)` = sprintf(
+    "**%s**",
+    format(mapped_pixels, big.mark = ",")
+  ),
+  `Mapped Area (km²)` = sprintf(
+    "**%s**",
+    format(round(mapped_area_km2, 2), big.mark = ",", nsmall = 2)
+  )
+)
+
+kable(
+  bind_rows(tbl_rows, total_row),
+  format = "pipe",
+  align = c("r", "l", "l", "l", "l", "l", "r", "r", "r")
+)
+```
+
+### Summary of Uncertainty Layers
+
+- **`ntveg-xref-membership.tiff` (`prop_memb`)**:
+  - Represents the proportion of total membership across the interpreters who assessed the MAPUNIT in Round `r round_nr` assigned to the winning EFG:
+    $$\text{prop\_memb}_{s, t^*} = \frac{\sum_{i} m_{s, t^*, i}}{\sum_{t} \sum_{i} m_{s, t, i}}$$
+  - Values range from **`r sprintf("%.2f", memb_minmax[1])`** (contested/broadly split MAPUNIT) to **`r sprintf("%.2f", memb_minmax[2])`** (unanimous 100% assignment).
+- **`ntveg-xref-supporting.tiff` (`supporting`)**:
+  - Count of interpreters (at most `r n_interp`) who assigned $m_{s, t^*, i} > 0$ to the best-candidate EFG. Note that `supporting` is out of the interpreters who assessed the MAPUNIT (`total_interp` is 2 for most MAPUNITs):
+```{r}
+#| label: supporting-bullets
+#| results: asis
+for (i in seq_len(nrow(supp_summary))) {
+  row <- supp_summary[i, ]
+  unit_word <- ifelse(row$n_units == 1, "mapped MAPUNIT", "mapped MAPUNITs")
+  cat(sprintf(
+    "    - `supporting = %d`: **%d %s** (`%s` pixels / `%s km²` / **%.2f%%** of mapped area)\n",
+    row$supporting,
+    row$n_units,
+    unit_word,
+    format(row$pixels, big.mark = ","),
+    format(round(row$area_km2, 2), big.mark = ",", nsmall = 2),
+    row$pct_area
+  ))
+}
+```
+
+---
+
+## 5. Tabular Data Dictionaries
+
+### `ntveg-xref-best-candidate.csv` (`r nrow(xref_tbl)` rows × `r ncol(xref_tbl)` columns)
+
+```{r}
+#| label: dict-best
+#| results: asis
+dict_table(datapkg$resources[[1]])
+```
+
+### `IUCN-GET-pixel-lookup.csv` (`r nrow(efg_lut)` rows × `r ncol(efg_lut)` columns)
+
+```{r}
+#| label: dict-lookup
+#| results: asis
+dict_table(datapkg$resources[[2]])
+```
+
+---
+
+## 6. How to Use This Dataset
+
+### In QGIS or ArcGIS
+- **QGIS:** Keep `ntveg-xref-target.qml` in the same folder as `ntveg-xref-target.tiff`. When you drag and drop `ntveg-xref-target.tiff` into QGIS, it will automatically apply the official Global Ecosystems Atlas color palette and display both the EFG code and full name in the Layers legend.
+- **ArcGIS Pro / GDAL:** Use `ntveg-xref-target.clr` to import the color map and labels, or join `IUCN-GET-pixel-lookup.csv` on the `Value` = `efg_pixel_value` field.
+
+### In R (`terra`)
+
+```r
+library(terra)
+library(readr)
+
+# 1. Load the three 90m rasters and lookup table
+r_target <- rast("ntveg-xref-target.tiff")
+r_memb   <- rast("ntveg-xref-membership.tiff")
+r_supp   <- rast("ntveg-xref-supporting.tiff")
+lut      <- read_csv("IUCN-GET-pixel-lookup.csv")
+
+plot(r_target, main = "Best-Candidate IUCN GET Ecosystem Functional Group (90 m)")
+
+# 2. Example: mask to high-confidence areas (prop_memb >= 0.8 and supporting >= 3)
+high_conf_mask <- (r_memb >= 0.8) & (r_supp >= 3)
+r_target_high_conf <- mask(r_target, high_conf_mask, maskvalues = c(0, NA))
+```
+
+### In Python (`rasterio` / `pandas`)
+
+```python
+import pandas as pd
+import rasterio
+
+lut = pd.read_csv("IUCN-GET-pixel-lookup.csv")
+xref = pd.read_csv("ntveg-xref-best-candidate.csv")
+
+with rasterio.open("ntveg-xref-target.tiff") as src_targ, \
+     rasterio.open("ntveg-xref-membership.tiff") as src_memb:
+    efg_arr = src_targ.read(1)
+    memb_arr = src_memb.read(1)
+    crs = src_targ.crs
+    transform = src_targ.transform
+```
+
+### Reproducing the Outputs and Documentation from Source
+
+These files are generated by a sequence of [`scripts`](https://github.com/Ecosystem-Indicators-Workflows/ntveg-XREF/blob/main/scripts/) using custom functions (in `scripts/functions.R`), and [`README.qmd`](README.qmd) in the main workflow repository:
+
+```bash
+# 1. summarise membership tables, reclassify and aggregate the raster file to 90m and write the outputs 
+Rscript scripts/10_create-output-best-candidate.R
+# 2. update checksums for outputs / inputs
+./scripts/00_md5sum_checks.sh
+# 3. write and synchronise metadata
+Rscript scripts/11_create-output-best-candidate.R
+
+# 4. Re-render README.md with updated statistics from the generated files
+quarto render results/output1-best-candidate-raster/README.qmd
+```
+
+
+**Required R packages:** `dplyr`, `readr`, `tidyr`, `stringr`, `purrr`, `readxl`, `terra`, `sf`, `here`, `knitr`, `jsonlite`, `yaml`, `ggplot2`, plus GitHub packages `ecoSynthesis` and `Global-Ecosystems-Atlas/geco`.
+
+---
+
+## 7. Licensing, Attribution & Acknowledgements
+
+### License & Mandatory Attribution
+- **Dataset & Documentation:** Licensed under **Creative Commons Attribution 4.0 International ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))**.
+- **Source Spatial Data Attribution:** See https://hdl.handle.net/10070/674164
+- **Scripts/Code:** Licensed under the **MIT License** (see [`LICENSE`](LICENSE)).
+
+### Funding & Acknowledgements
+This work was supported by:
+
+- The **ARC Industry Laureate Fellowship Project** *"Foundations for leading the nature positive ecosystem conservation agenda"* ([IL240100030](https://dataportal.arc.gov.au/NCGP/Web/Grant/Grant/IL240100030)) led by Professor David Keith at UNSW Sydney, in partnership with the Department of Climate Change, Energy, the Environment and Water, International Union for Conservation of Nature (IUCN), Department of Energy, Environment and Water, Department of Biodiversity, Conservation and Attractions, Department of Planning and Environment NSW, and Department of Natural Resources and Environment Tasmania.
+- The **[Ecosystem Indicators Workflows (EIW)](https://doi.org/10.3565/j5sq-a757)** project, which received investment from the **Australian Research Data Commons (ARDC)**. The ARDC is funded by the **National Collaborative Research Infrastructure Strategy (NCRIS)**.
+
+## 8. References
+
+- **IUCN (2025).** *Standards, methods and guidelines for cross-referencing ecosystem classifications and maps to the IUCN Global Ecosystem Typology*. Version 1.0. Edited by D. A. Keith, A. Dayaram, A. Driver, J. R. Ferrer-Paris, R. Francis, S. Hay, N. J. Murray, E. Nicholson, J. Santos, A. L. Skowno, and M. G. Tozer. Gland, Switzerland: IUCN. ISBN: 978-2-8317-2348-8. <https://doi.org/10.2305/CPPC6126>
+- **Keith, D. A., Ferrer-Paris, J. R., Nicholson, E., et al. (2022).** A function-based typology for Earth's ecosystems. *Nature*, 610(7932), 513–518. <https://doi.org/10.1038/s41586-022-05318-4>
+- **Wilson, B. A. (1990).**, Vegetation survey of the Northern Territory, Australia 1990 - explanatory notes to accompany 1: 1000000 map sheets. Retrieved 2026, November 23, from <https://hdl.handle.net/10070/674164>.

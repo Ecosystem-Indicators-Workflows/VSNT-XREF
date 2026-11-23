@@ -11,4 +11,5 @@ data/processed_data
 .vscode/*
 results/*/*
 !results/*/README.qmd
+!results/*/LICENSE
 */air.toml
