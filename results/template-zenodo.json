@@ -1,0 +1,71 @@
+{
+    "title": "",
+    "publication_date": "",
+    "description": "",
+    "access_right": "embargoed",
+    "embargo_date": "2027-06-01",
+    "creators": [
+        {
+            "name": "Tozer, Mark G.",
+            "affiliation": "Centre for Ecosystem Science, UNSW Sydney",
+            "orcid": "0000-0002-7373-0077"
+        },
+        {
+            "name": "Ferrer-Paris, José R.",
+            "affiliation": "Centre for Ecosystem Science, UNSW Sydney; IUCN Commission on Ecosystem Management",
+            "orcid": "0000-0002-9554-3395"
+        },
+        {
+            "name": "Singh, Abhimanyu Raj",
+            "affiliation": "Centre for Ecosystem Science, UNSW Sydney; QCIF",
+            "orcid": "0000-0002-2279-7060"
+        },
+        {
+            "name": "Gould, Elliot",
+            "affiliation": "Centre for Ecosystem Science, UNSW Sydney",
+            "orcid": "0000-0002-6585-538X"
+        },
+        {
+            "name": "Keith, David A.",
+            "affiliation": "Centre for Ecosystem Science, UNSW Sydney; IUCN Commission on Ecosystem Management",
+            "orcid": "0000-0002-7627-4150"
+        }
+    ],
+    "keywords": [
+        "IUCN Global Ecosystem Typology",
+        "Ecosystem Functional Groups",
+        "cross-referencing",
+        "vegetation mapping",
+        "expert elicitation",
+        "fuzzy membership",
+        "GeoTIFF",
+        "Global Ecosystems Atlas",
+        "Ecosystem Indicators Workflows"
+    ],
+    "related_identifiers": [
+        {
+            "identifier": "10.1038/s41586-022-05318-4",
+            "relation": "cites",
+            "resource_type": "publication-article",
+            "scheme": "doi"
+        },
+        {
+            "identifier": "10.2305/CPPC6126",
+            "relation": "cites",
+            "resource_type": "publication-book",
+            "scheme": "doi"
+        },
+        {
+            "identifier": "https://w3id.org/iucn-get/IUCNEcosystemTypology",
+            "relation": "cites",
+            "resource_type": "other",
+            "scheme": "url"
+        }
+    ],
+    "version": "",
+    "language": "eng",
+    "license": "cc-by-4.0",
+    "imprint_publisher": "Zenodo",
+    "notes": "This work was supported by the ARC Industry Laureate Fellowship Project 'Foundations for leading the nature positive ecosystem conservation agenda' (IL240100030) led by Professor David Keith at UNSW Sydney, and the Ecosystem Indicators Workflows (EIW) project, a co-investment partnership with the Australian Research Data Commons (ARDC). The ARDC is enabled by the National Collaborative Research Infrastructure Strategy (NCRIS). Source spatial data: %s",
+    "upload_type": "dataset"
+}
