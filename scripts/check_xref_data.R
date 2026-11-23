@@ -188,12 +188,22 @@ check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
 ## ----- Check membership table -----
 
 ## Checks that the membership table is valid and consistent with the source and target lookup tables. Ensures that all source IDs in the membership table are present in the source lookup table, and that all target IDs in the membership table are present in the target lookup table. Checks that source and target units are not duplicated. Also checks that the membership values are valid (i.e., between 0 and 1, not NA).
+checked <- check_membership_pb(
+  x = ntveg_memb,
+  source = ntveg_LUT,
+  target = IUCN_GET
+)
 
-# checked |>
-#   export_report(filename = here::here(out_dir, "xref_data_check_report.html"))
+checked |>
+  export_report(
+    filename = here::here(processed_data, "xref_data_check_report.html")
+  )
 
-# checked |> get_sundered_data(type = "pass")
-# checked |> get_sundered_data(type = "fail")
+checked |>
+  get_sundered_data(type = "fail") |>
+  pointblank::expect_specially(,
+    fn = function(x) nrow(x) == 0
+  )
 
 ntveg_memb |>
   filter(!is.na(memb), memb > 0) |>
@@ -207,13 +217,32 @@ ntveg_memb |>
 ## ----- Check cross-reference data -----
 
 ## Every cross-ref row can be linked to spatial feature?
+
+ntveg_memb |>
+  pointblank::expect_specially(
+    fn = function(x) nrow(x) == 0,
+    preconditions = function(x) anti_join(x, ntveg_LUT)
+  )
+
 # should be 0, if not then there are some MAPUNITs in the membership table that are not in the source lookup table
 
 ## Inversely, every spatial feature can be linked to cross-ref row?
 
+ntveg_LUT |>
+  pointblank::expect_specially(
+    fn = function(x) nrow(x) == 0,
+    preconditions = function(x) anti_join(x, ntveg_memb)
+  )
+
 # should be 0, if not then there are some MAPUNITs in the source lookup table that are not in the membership table
 
 ## Every cross-ref row can be linked to target lookup table?
+
+ntveg_memb |>
+  pointblank::expect_specially(
+    fn = function(x) nrow(x) == 0,
+    preconditions = function(x) anti_join(x, IUCN_GET, by = c("EFG" = "efg_id"))
+  )
 
 # should be 0, if not then there are some EFGs in the membership table that are not in the target lookup table
 
