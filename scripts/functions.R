@@ -90,7 +90,7 @@ pivot_wide_membership_table <- function(
 
 #' Clean membership table by filtering out records with invalid membership values, source IDs, or target IDs.
 #' @author JRFP
-#' @source Copied from https://github.com/Ecosystem-Indicators-Workflows/WAVSA-XREF/blob/1a9cb836d0120ac0f2276557804f07584377b6a9/scripts/functions.R#L33-L128
+#' @source Copied from https://github.com/Ecosystem-Indicators-Workflows/VSNT-XREF/blob/1a9cb836d0120ac0f2276557804f07584377b6a9/scripts/functions.R#L33-L128
 clean_membership <- function(x, source, target, action = "filter") {
   message("Using `clean_membership` from scripts/functions.R")
   stopifnot(inherits(x, "membership_tbl"))
@@ -327,4 +327,103 @@ check_membership_pb <- function(x, source, target, interrogate = TRUE) {
   }
 
   return(agent)
+}
+
+### Custom functions for md5sum checks
+
+file_checks <- function(
+  x,
+  md5sum_file,
+  what = c("input", "output"),
+  skip_checks = FALSE
+) {
+  message("using `file_checks` from scripts/functions.R")
+  require(stringr)
+  require(tools)
+
+  what <- match.arg(what)
+  message(sprintf("\nCheck %s %s files:\n", length(x), what))
+
+  # Read lines from the checksum file
+  lines <- readLines(md5sum_file)
+  lines <- lines[nzchar(lines)] # Remove empty lines
+
+  # Split each line into the expected hash and the relative file path
+  expected_hashes <- sub("\\s+.*$", "", lines)
+  file_names <- sub("^[0-9a-fA-F]+\\s+\\*?", "", lines)
+
+  # Create a summary data frame
+  md5hash <- data.frame(
+    file_path = file_names,
+    expected = tolower(expected_hashes)
+  )
+  root_path <- here::here()
+  rel_path <- str_replace(x, root_path, "") |> str_replace("^/", "")
+
+  results <- tibble(
+    shortname = names(x),
+    file_name = basename(x),
+    size = file.size(x),
+    md5sum = md5sum(x),
+    file_path = rel_path
+  ) |>
+    left_join(md5hash, by = "file_path") |>
+    transmute(
+      shortname,
+      file_name,
+      md5sum,
+      expected,
+      check = if_else(md5sum == expected, "Ok", "Not Ok :("),
+      size,
+      file_path
+    )
+
+  message(sprintf(
+    "\n\tCheck completed %s/%s files matched\n\n",
+    sum(results$check %in% "Ok"),
+    length(x)
+  ))
+  if (what == "input") {
+    if (any(!results$check %in% "Ok")) {
+      message(
+        c(
+          "Wait! Something is wrong!",
+          "\tFiles missing or their content changed since last run",
+          "\tCheck inputs and recalculate md5sum if needed!"
+        )
+      )
+      if (!skip_checks) {
+        print(results)
+        stop(
+          "You should not continue until you fix the input files"
+        )
+      }
+    } else {
+      message(
+        c(
+          "All files match expected md5sum hash",
+          "\tThis is good for reproducibility!"
+        )
+      )
+    }
+  }
+  if (what == "output") {
+    if (any(results$check %in% "Ok")) {
+      message(c(
+        "Some outputs match expected values"
+      ))
+      if (!skip_checks) {
+        print(results)
+        stop(
+          "Stopping here to avoid overwriting!\n\tIf you want to rerun the analysis, remove older files."
+        )
+      } else {
+        message(c(
+          "\tThis is good news for reproducibility!",
+          "\tCheck inputs and outputs to make sure they are consistent."
+        ))
+      }
+    }
+  }
+  return(results)
 }
