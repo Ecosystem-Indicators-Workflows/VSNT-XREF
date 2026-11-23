@@ -83,7 +83,7 @@ IUCN_GET <- tibble(
   realm_id = "T",
   realm_name = "Terrestrial"
 ) |>
-  bind_rows(IUCN_GET_LUT) |>
+  bind_rows(ecoSynthesis::IUCN_GET_LUT) |>
   lookup_tbl("efg_id", "efg_name")
 
 # ---- Load the crosswalk data --------------------------------------------
