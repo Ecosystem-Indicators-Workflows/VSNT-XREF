@@ -6,6 +6,7 @@
 library(readr)
 library(dplyr)
 library(tidyr)
+library(stringr)
 
 ## Read and write (other formats), filepaths & directories
 library(here)
@@ -39,7 +40,7 @@ gisdata_dir <- here::here("data/source-data")
 out_dir <- here::here("results", "output1-best-candidate-raster")
 processed_data <- here::here("data", "processed_data")
 
-for (check_dir in c(xref_dir, gisdata_dir, out_dir)) {
+for (check_dir in c(xref_dir, gisdata_dir, out_dir, processed_data)) {
   if (!dir.exists(check_dir)) {
     dir.create(check_dir, recursive = TRUE)
   }
@@ -56,20 +57,22 @@ source(here::here("scripts", "functions.R"))
 
 # Download and unzip the NT NVIS & vegetation data
 
-list(
-  nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
-  veg_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
-) |>
-  purrr::walk(
-    ~ get_data(
-      data_url = .x,
-      output_file = {
-        here::here(gisdata_dir, urltools::param_get(.x, "realfilename"))
-      },
-      gisdata_path = gisdata_dir,
-      overwrite = FALSE
+if (!file.exists(here::here(gisdata_dir, "ntveg_1M.shp"))) {
+  list(
+    nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
+    veg_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=e78bd012813d86c84c37681c72021704&realfilename=VegResources_ntveg_1M.zip"
+  ) |>
+    purrr::walk(
+      ~ get_data(
+        data_url = .x,
+        output_file = {
+          here::here(gisdata_dir, urltools::param_get(.x, "realfilename"))
+        },
+        gisdata_path = gisdata_dir,
+        overwrite = FALSE
+      )
     )
-  )
+}
 
 # ----- Step 2 - data preparation -----
 
@@ -489,7 +492,7 @@ ntveg_xy_best <- ntveg_xy |>
   left_join(efg_pixel_values, by = "EFG")
 
 ### template raster file
-rez <- 100
+rez <- 90
 ntveg_raster <- raster(ntveg_xy, res = rez)
 
 ### ----- Best candidate

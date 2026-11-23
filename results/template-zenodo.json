@@ -16,11 +16,6 @@
             "orcid": "0000-0002-9554-3395"
         },
         {
-            "name": "Singh, Abhimanyu Raj",
-            "affiliation": "Centre for Ecosystem Science, UNSW Sydney; QCIF",
-            "orcid": "0000-0002-2279-7060"
-        },
-        {
             "name": "Gould, Elliot",
             "affiliation": "Centre for Ecosystem Science, UNSW Sydney",
             "orcid": "0000-0002-6585-538X"
@@ -29,6 +24,13 @@
             "name": "Keith, David A.",
             "affiliation": "Centre for Ecosystem Science, UNSW Sydney; IUCN Commission on Ecosystem Management",
             "orcid": "0000-0002-7627-4150"
+        }
+    ],
+    "contributors": [
+        {
+            "name": "Singh, Abhimanyu Raj",
+            "affiliation": "Centre for Ecosystem Science, UNSW Sydney; QCIF",
+            "orcid": "0000-0002-2279-7060"
         }
     ],
     "keywords": [
@@ -62,7 +64,7 @@
             "scheme": "url"
         }
     ],
-    "version": "",
+    "version": "0.1.0",
     "language": "eng",
     "license": "cc-by-4.0",
     "imprint_publisher": "Zenodo",
