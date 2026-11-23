@@ -2,26 +2,42 @@
 
 # Load libraries
 
-library(here)
+## tidyverse libraries
 library(readr)
 library(dplyr)
 library(tidyr)
-library(ecoSynthesis)
+
+## Read and write (other formats), filepaths & directories
+library(here)
+library(fs)
+
+## Spatial data
 library(sf)
 library(fasterize)
 library(raster)
 library(terra)
-library(fs)
+
+## String manipulation for cli and metadata creation
 library(glue)
-library(geco)
-library(stringr)
+
+## QA & error checking
+library(cli)
 library(pointblank)
+
+## Cross-referencing
+library(ecoSynthesis)
+library(geco)
+
+# Benchmarking
+library(tictoc)
+tic()
 
 # Create directories if not present
 
 xref_dir <- here::here("data/xrefdata")
 gisdata_dir <- here::here("data/source-data")
 out_dir <- here::here("results", "output1-best-candidate-raster")
+processed_data <- here::here("data", "processed_data")
 
 for (check_dir in c(xref_dir, gisdata_dir, out_dir)) {
   if (!dir.exists(check_dir)) {
@@ -29,14 +45,16 @@ for (check_dir in c(xref_dir, gisdata_dir, out_dir)) {
   }
 }
 
-# Predefined parameters
-
+## Predefined parameters
 the_round <- 3
+epsg_code <- "EPSG:3112"
 
-### Custom functions
+## Custom functions
 source(here::here("scripts", "functions.R"))
 
-# ---- Download and unzip the NT NVIS & vegetation data ------------------------------------------------
+# ----- Step 1 - data download  -----
+
+# Download and unzip the NT NVIS & vegetation data
 
 list(
   nvis_data_url = "https://ftp-dlrm.nt.gov.au/main.html?download&weblink=0174c920a0189d8c13f18dd3121c9675&realfilename=VegResources_NVIS_1M.zip",
@@ -53,11 +71,13 @@ list(
     )
   )
 
+# ----- Step 2 - data preparation -----
+
 NT_ntveg <- read_sf(here::here(gisdata_dir, "ntveg_1M.shp"))
 
-# ---- Create a lookup tables ------------------------------------------------
+## ----- Lookup table creation ------
 
-## Lookup table source classification - NT vegetation data
+## Lookup table `source` classification - NT vegetation data
 
 ntveg_LUT <- NT_ntveg |>
   st_drop_geometry() |>
@@ -76,7 +96,7 @@ ntveg_LUT <- NT_ntveg |>
   lookup_tbl("MAPUNIT", "ENV_DESC") |>
   mutate(MAPUNIT = as.numeric(MAPUNIT))
 
-## Lookup table target classification
+## Lookup table `target` classification
 
 IUCN_GET <- tibble(
   efg_id = "T5.6",
@@ -161,13 +181,13 @@ ntveg_memb <-
   arrange(MAPUNIT) |>
   filter(!is.na(EFG))
 
-## Explore and validate cross-reference data
+# ----- Step 3 -  data validation -----
 
-# checked <- check_membership_pb(
-#   x = ntveg_memb,
-#   source = ntveg_LUT,
-#   target = IUCN_GET
-# )
+check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
+
+## ----- Check membership table -----
+
+## Checks that the membership table is valid and consistent with the source and target lookup tables. Ensures that all source IDs in the membership table are present in the source lookup table, and that all target IDs in the membership table are present in the target lookup table. Checks that source and target units are not duplicated. Also checks that the membership values are valid (i.e., between 0 and 1, not NA).
 
 # checked |>
 #   export_report(filename = here::here(out_dir, "xref_data_check_report.html"))
@@ -184,24 +204,20 @@ ntveg_memb |>
     .groups = "drop"
   )
 
-# debugonce(check_membership)
+## ----- Check cross-reference data -----
 
-check_membership(ntveg_memb, source = ntveg_LUT, target = IUCN_GET)
-
-# Every cross-ref row can be linked to spatial feature?
+## Every cross-ref row can be linked to spatial feature?
 # should be 0, if not then there are some MAPUNITs in the membership table that are not in the source lookup table
-ntveg_memb |>
-  anti_join(ntveg_LUT) |>
-  nrow()
 
-# Inversely, every spatial feature can be linked to cross-ref row?
+## Inversely, every spatial feature can be linked to cross-ref row?
+
 # should be 0, if not then there are some MAPUNITs in the source lookup table that are not in the membership table
-ntveg_LUT |>
-  anti_join(ntveg_memb) |>
-  nrow()
 
-# Every cross-ref row can be linked to target lookup table?
+## Every cross-ref row can be linked to target lookup table?
+
 # should be 0, if not then there are some EFGs in the membership table that are not in the target lookup table
+
+## ----- Diagnose missing EFGs -----
 
 ntveg_memb_missing_efgs <- ntveg_memb |>
   anti_join(IUCN_GET, by = c("EFG" = "efg_id"))
@@ -209,13 +225,12 @@ ntveg_memb_missing_efgs <- ntveg_memb |>
 ntveg_memb_missing_efgs |>
   summarise(n_distinct(MAPUNIT), .by = c(expert, round, EFG))
 
-ntveg_memb_missing_efgs |>
-  nrow()
-
 distinct(ntveg_memb_missing_efgs, EFG) |> unlist() |> gluedown::md_bullet() #T5.6 addition now means is empty
 distinct(ntveg_memb_missing_efgs, MAPUNIT) |> unlist() |> gluedown::md_bullet() #T5.6 addition now means is empty
 
-## Clean membership table by filtering out records with invalid membership values, source IDs, or target IDs
+## ----- Clean membership table -----
+
+# Remove records with invalid membership values, source IDs, or target IDs
 
 ntveg_memb_check <- clean_membership(
   x = ntveg_memb,
@@ -238,7 +253,7 @@ ntveg_memb_clean <- clean_membership(
   action = "filter"
 )
 
-# ---- Synthesis -----
+# ---- Step 4 -  Synthesis -----
 
 ntveg_best_summary <- summarise_membership(
   ntveg_memb_clean |> mutate(MAPUNIT = as.character(MAPUNIT)),
@@ -254,7 +269,7 @@ ntveg_best_summary
 ## Convert vector to raster using 'fasterize'
 
 ## template raster file
-ntveg_xy <- sf::st_transform(NT_ntveg, "EPSG:3112") |>
+ntveg_xy <- sf::st_transform(NT_ntveg, epsg_code) |>
   dplyr::filter(!is.na(MAPUNIT)) |>
   dplyr::mutate(MAPUNIT = as.character(MAPUNIT))
 
@@ -283,8 +298,6 @@ efg_info <- geco::geco_efg_data() |>
 efg_pixel_values <- efg_info |>
   dplyr::select(EFG, efg_pixel_value)
 
-## Create a raster stack of all the EFG rasters
-
 # ----- Step 5 - export outputs -----
 
 xref_best_file <- "ntveg-xref-best-candidate.csv"
@@ -296,7 +309,7 @@ xref_tiff_file <- "ntveg-xref-target.tiff"
 memb_tiff_file <- "ntveg-xref-membership.tiff"
 supp_tiff_file <- "ntveg-xref-supporting.tiff"
 
-## 5a. Export tabular synthesis tables
+## ----- 5a. Export tabular synthesis tables
 xref_best_tbl <- ntveg_LUT |>
   mutate(MAPUNIT = as.character(MAPUNIT)) |>
   left_join(ntveg_best_summary, by = c("MAPUNIT")) |>
@@ -319,7 +332,7 @@ xref_best_tbl <- ntveg_LUT |>
 
 write_csv(xref_best_tbl, here::here(out_dir, xref_best_file))
 
-## 5b. Export tabular lookup  tables
+## ----- 5b. Export tabular lookup  tables
 
 efg_lookup_tbl <- xref_best_tbl |>
   dplyr::filter(!is.na(EFG)) |>
@@ -351,7 +364,7 @@ write_csv(
   here::here(out_dir, efg_lookup_file)
 )
 
-## 5c. Export colour file
+## ----- 5c. Export colour file
 
 clr_lines <- efg_lookup_tbl |>
   tidyr::separate(efg_rgb_code, into = c("R", "G", "B"), sep = ",") |>
@@ -373,7 +386,7 @@ writeLines(
   here::here(out_dir, xref_clr_file)
 )
 
-## 5d. Export style file
+## ----- 5d. Export style file
 
 qml_entries <- efg_lookup_tbl |>
   transmute(
@@ -418,7 +431,7 @@ qml_lines <- c(
 
 writeLines(qml_lines, here::here(out_dir, xref_qml_file))
 
-## 5f. Export raster files
+## ----- 5f. Export raster files
 
 ## Check for non-matching MAPUNITs between the spatial data match and those in the membership table
 stopifnot(
@@ -435,8 +448,9 @@ stopifnot(
     0
 )
 
+## ----- 5f. Export raster files -----
 
-#  Combined attribute table (vector data)
+### -----  Combined attribute table (vector data)
 ntveg_xy_best <- ntveg_xy |>
   left_join(
     ntveg_best_summary,
@@ -445,13 +459,11 @@ ntveg_xy_best <- ntveg_xy |>
   ) |>
   left_join(efg_pixel_values, by = "EFG")
 
-# template raster file
 ### template raster file
 rez <- 100
 ntveg_raster <- raster(ntveg_xy, res = rez)
 
-#### Best candidate
-
+### ----- Best candidate
 target_raster <- fasterize(
   ntveg_xy_best,
   ntveg_raster,
@@ -490,7 +502,7 @@ writeRaster(
 out_file <- here::here(out_dir, "ntveg-xref-target.tiff.vat.dbf")
 foreign::write.dbf(data.frame(raster_attributes), file = out_file)
 
-## Best candidate membership
+### Best candidate membership
 
 memb_raster <- fasterize(
   ntveg_xy_best,
@@ -508,7 +520,7 @@ metags(memb_raster) <- rast_metadata
 
 writeRaster(memb_raster, here::here(out_dir, memb_tiff_file), overwrite = TRUE)
 
-## Supporting interpreters
+### Supporting interpreters
 
 supp_raster <- fasterize(
   ntveg_xy_best,
@@ -523,3 +535,5 @@ rast_metadata["TITLE"] <- "Nr. of interpreters supporting assignment"
 metags(supp_raster) <- rast_metadata
 
 writeRaster(supp_raster, here::here(out_dir, supp_tiff_file), overwrite = TRUE)
+
+# ----- Step 6 - Benchmarking and session info
