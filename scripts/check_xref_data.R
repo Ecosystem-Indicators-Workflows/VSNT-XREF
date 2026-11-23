@@ -109,7 +109,7 @@ IUCN_GET <- tibble(
   bind_rows(ecoSynthesis::IUCN_GET_LUT) |>
   lookup_tbl("efg_id", "efg_name")
 
-# ---- Load the crosswalk data --------------------------------------------
+## ------ Membership table creation -----
 
 # read data from the xref_dir directory
 read_xref_data <- function(file_path) {
@@ -537,3 +537,5 @@ metags(supp_raster) <- rast_metadata
 writeRaster(supp_raster, here::here(out_dir, supp_tiff_file), overwrite = TRUE)
 
 # ----- Step 6 - Benchmarking and session info
+toc()
+xfun::session_info()
