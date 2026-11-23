@@ -5,6 +5,7 @@
 ## tidyverse libraries
 library(dplyr)
 library(readr)
+library(cli)
 
 ## Read and write other formats
 library(jsonlite)
@@ -19,6 +20,9 @@ out_dir <- here::here("results", "output1-best-candidate-raster")
 if (!dir.exists(out_dir)) {
   dir.create(out_dir, recursive = TRUE)
 }
+
+## Custom functions
+source(here::here("scripts", "functions.R"))
 
 # ----- Metadata -----
 
@@ -44,6 +48,7 @@ input_filenames <- c(
   supp_tiff_file = "ntveg-xref-supporting.tiff",
   xref_clr_file = "ntveg-xref-target.clr",
   xref_aux_file = "ntveg-xref-target.tiff.aux.xml",
+  xref_vat_file = "ntveg-xref-target.tiff.vat.dbf",
   xref_qml_file = "ntveg-xref-target.qml"
 )
 input_files <- here::here(out_dir, input_filenames)
@@ -80,6 +85,7 @@ how_many_units <- n_distinct(xref_best_tbl$MAPUNIT)
 nr_assigned <- xref_best_tbl |>
   dplyr::filter(!is.na(EFG)) |>
   n_distinct("MAPUNIT")
+nr_assigned_map <- nr_assigned
 total_rounds <- max(the_round, na.rm = TRUE)
 nr_eligible <- xref_best_tbl |>
   dplyr::filter(eligible) |>
@@ -282,6 +288,21 @@ rs[[8]] <- list(
     "90 m raster of the number of interpreters (supporting, range {min_supporting} to {max_supporting} out of {total_experts}) assigning non-zero membership to the best-candidate EFG in {crs_label}."
   )
 )
+
+
+finfo <- input_files_info |> slice(match("xref_vat_file", shortname))
+
+rs[[9]] <- list(
+  name = "Best candidate EFG sidecar file",
+  path = finfo$file_name,
+  format = "dbf",
+  mediatype = "application/dbase",
+  hash = unname(finfo$md5sum),
+  description = glue::glue(
+    "Raster Value Attribute Table (VAT) storing cell values, labels and colour codes for {xref_tiff_filename}."
+  )
+)
+
 
 ### ----- Best candidate -----
 
